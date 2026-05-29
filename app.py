@@ -1108,13 +1108,24 @@ with tab4:
     st.header("Risk Management")
 
     st.markdown("""
-    Cette partie calcule des indicateurs de risque sur la commodity sélectionnée :
-    volatilité, VaR historique, Expected Shortfall et stress tests.
+    Cette partie mesure le risque de marché sur la commodity sélectionnée.
+
+    On utilise les rendements historiques pour calculer :
+    - la volatilité ;
+    - la Value-at-Risk ;
+    - l'Expected Shortfall ;
+    - les stress tests ;
+    - le drawdown.
     """)
 
+    # On récupère les rendements journaliers déjà calculés.
     returns = metrics["returns"]
 
-    st.subheader("Paramètres de risque")
+    # ========================================================
+    # 1. PARAMÈTRES DE LA POSITION
+    # ========================================================
+
+    st.subheader("1. Paramètres de la position")
 
     col1, col2 = st.columns(2)
 
@@ -1132,63 +1143,282 @@ with tab4:
             ["Long", "Short"]
         )
 
-    # VaR historique à 95%.
-    # Pour une position long, une baisse du prix génère une perte.
-    # Pour une position short, une hausse du prix génère une perte.
-    if position_direction == "Long":
-        var_return = returns.quantile(0.05)
-        expected_shortfall_return = returns[returns <= var_return].mean()
-    else:
-        var_return = returns.quantile(0.95)
-        expected_shortfall_return = returns[returns >= var_return].mean()
+    st.markdown("""
+    **Lecture :**
 
-    # Conversion en montant.
-    # On met un signe positif pour afficher la perte potentielle.
+    - Une position **long** gagne lorsque le prix de la commodity monte.
+    - Une position **short** gagne lorsque le prix de la commodity baisse.
+    """)
+
+    # ========================================================
+    # 2. CALCUL DU P&L HISTORIQUE
+    # ========================================================
+
+    # Pour une position long :
+    # P&L = rendement de la commodity x valeur de la position.
+    #
+    # Pour une position short :
+    # P&L = - rendement de la commodity x valeur de la position.
+    #
+    # Exemple :
+    # si le prix monte de 2 %, une position long gagne 2 %,
+    # mais une position short perd 2 %.
+
     if position_direction == "Long":
-        var_amount = -var_return * position_value
-        expected_shortfall_amount = -expected_shortfall_return * position_value
+        position_returns = returns
     else:
-        var_amount = var_return * position_value
-        expected_shortfall_amount = expected_shortfall_return * position_value
+        position_returns = -returns
+
+    # P&L journalier historique en montant.
+    portfolio_pnl = position_returns * position_value
+
+    # Les pertes sont l'opposé du P&L.
+    # Si le P&L est -2 000, la perte est +2 000.
+    historical_losses = -portfolio_pnl
+
+    # ========================================================
+    # 3. VOLATILITÉ
+    # ========================================================
+
+    # Volatilité journalière : écart-type des rendements journaliers.
+    daily_volatility = position_returns.std()
+
+    # Volatilité annualisée :
+    # on multiplie la volatilité journalière par racine de 252.
+    # 252 correspond approximativement au nombre de jours de trading par an.
+    annualized_volatility = daily_volatility * np.sqrt(252)
+
+    # Volatilité en montant.
+    annualized_volatility_amount = annualized_volatility * position_value
+
+    # ========================================================
+    # 4. VALUE-AT-RISK ET EXPECTED SHORTFALL
+    # ========================================================
+
+    # VaR 95 % :
+    # perte qui ne devrait être dépassée que dans 5 % des cas.
+    var_95 = historical_losses.quantile(0.95)
+
+    # VaR 99 % :
+    # perte qui ne devrait être dépassée que dans 1 % des cas.
+    var_99 = historical_losses.quantile(0.99)
+
+    # Expected Shortfall 95 % :
+    # perte moyenne lorsque la perte dépasse la VaR 95 %.
+    expected_shortfall_95 = historical_losses[historical_losses >= var_95].mean()
+
+    # Expected Shortfall 99 % :
+    # perte moyenne lorsque la perte dépasse la VaR 99 %.
+    expected_shortfall_99 = historical_losses[historical_losses >= var_99].mean()
+
+    # Pire perte journalière observée.
+    worst_daily_loss = historical_losses.max()
+
+    # Meilleur gain journalier observé.
+    best_daily_gain = portfolio_pnl.max()
+
+    # ========================================================
+    # 5. AFFICHAGE DES INDICATEURS PRINCIPAUX
+    # ========================================================
+
+    st.subheader("2. Indicateurs de risque principaux")
 
     col1, col2, col3, col4 = st.columns(4)
 
-    col1.metric("Volatilité annualisée", format_percentage(metrics["annualized_volatility"]))
-    col2.metric("VaR 95% journalière", format_number(var_amount))
-    col3.metric("Expected Shortfall", format_number(expected_shortfall_amount))
-    col4.metric("Max Drawdown", format_percentage(metrics["max_drawdown"]))
+    col1.metric("Volatilité journalière", format_percentage(daily_volatility))
+    col2.metric("Volatilité annualisée", format_percentage(annualized_volatility))
+    col3.metric("VaR 95 %", format_number(var_95))
+    col4.metric("VaR 99 %", format_number(var_99))
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("Expected Shortfall 95 %", format_number(expected_shortfall_95))
+    col2.metric("Expected Shortfall 99 %", format_number(expected_shortfall_99))
+    col3.metric("Pire perte journalière", format_number(worst_daily_loss))
+    col4.metric("Meilleur gain journalier", format_number(best_daily_gain))
 
     st.markdown("""
-    **Lecture rapide :**
+    **Interprétation :**
 
-    - La **VaR 95%** estime une perte journalière qui ne devrait être dépassée que dans 5% des cas.
-    - L'**Expected Shortfall** mesure la perte moyenne dans les pires scénarios au-delà de la VaR.
-    - Le **Max Drawdown** mesure la pire baisse depuis un point haut historique.
+    - La **VaR 95 %** indique une perte journalière qui ne devrait être dépassée que dans 5 % des cas.
+    - La **VaR 99 %** est plus prudente car elle regarde les 1 % pires scénarios.
+    - L'**Expected Shortfall** mesure la perte moyenne dans les cas où la VaR est dépassée.
     """)
 
-    st.subheader("Distribution des rendements journaliers")
+    # ========================================================
+    # 6. TABLEAU DE SYNTHÈSE
+    # ========================================================
 
-    fig_hist = px.histogram(
-        returns,
-        nbins=50,
-        title=f"{selected_commodity} - Distribution des rendements journaliers"
+    st.subheader("3. Tableau de synthèse du risque")
+
+    risk_summary_df = pd.DataFrame({
+        "Indicateur": [
+            "Valeur de la position",
+            "Sens de la position",
+            "Volatilité journalière",
+            "Volatilité annualisée",
+            "Volatilité annualisée en montant",
+            "VaR 95 %",
+            "VaR 99 %",
+            "Expected Shortfall 95 %",
+            "Expected Shortfall 99 %",
+            "Pire perte journalière",
+            "Meilleur gain journalier"
+        ],
+        "Valeur": [
+            position_value,
+            position_direction,
+            daily_volatility,
+            annualized_volatility,
+            annualized_volatility_amount,
+            var_95,
+            var_99,
+            expected_shortfall_95,
+            expected_shortfall_99,
+            worst_daily_loss,
+            best_daily_gain
+        ]
+    })
+
+    risk_summary_display = risk_summary_df.copy()
+
+    def format_risk_value(value):
+        """
+        Fonction de formatage pour le tableau de risque.
+        Elle permet d'afficher proprement les montants et les pourcentages.
+        """
+
+        if isinstance(value, str):
+            return value
+        if pd.isna(value):
+            return "N/A"
+        return f"{value:,.2f}"
+
+    risk_summary_display["Valeur"] = risk_summary_display["Valeur"].apply(format_risk_value)
+
+    st.dataframe(risk_summary_display, width="stretch")
+
+    # ========================================================
+    # 7. DISTRIBUTION DU P&L HISTORIQUE
+    # ========================================================
+
+    st.subheader("4. Distribution du P&L historique")
+
+    pnl_df = pd.DataFrame({
+        "P&L": portfolio_pnl
+    })
+
+    fig_pnl_distribution = px.histogram(
+        pnl_df,
+        x="P&L",
+        nbins=60,
+        title=f"{selected_commodity} - Distribution du P&L journalier"
     )
 
-    fig_hist.update_layout(
-        xaxis_title="Rendement journalier",
+    # Ligne verticale pour la VaR 95 %.
+    # Comme la VaR est une perte positive, le niveau de P&L correspondant est -VaR.
+    fig_pnl_distribution.add_vline(
+        x=-var_95,
+        line_dash="dash",
+        annotation_text="VaR 95 %"
+    )
+
+    # Ligne verticale pour la VaR 99 %.
+    fig_pnl_distribution.add_vline(
+        x=-var_99,
+        line_dash="dash",
+        annotation_text="VaR 99 %"
+    )
+
+    fig_pnl_distribution.update_layout(
+        xaxis_title="P&L journalier",
         yaxis_title="Fréquence",
+        height=500
+    )
+
+    st.plotly_chart(fig_pnl_distribution, width="stretch")
+
+    # ========================================================
+    # 8. ÉVOLUTION DU P&L CUMULÉ
+    # ========================================================
+
+    st.subheader("5. Évolution du P&L cumulé")
+
+    # P&L cumulé :
+    # on additionne les P&L journaliers dans le temps.
+    cumulative_pnl = portfolio_pnl.cumsum()
+
+    cumulative_pnl_df = pd.DataFrame({
+        "Cumulative P&L": cumulative_pnl
+    })
+
+    fig_cumulative_pnl = px.line(
+        cumulative_pnl_df,
+        y="Cumulative P&L",
+        title=f"{selected_commodity} - P&L cumulé de la position"
+    )
+
+    fig_cumulative_pnl.update_layout(
+        xaxis_title="Date",
+        yaxis_title="P&L cumulé",
+        height=500
+    )
+
+    st.plotly_chart(fig_cumulative_pnl, width="stretch")
+
+    # ========================================================
+    # 9. DRAWDOWN
+    # ========================================================
+
+    st.subheader("6. Drawdown de la commodity")
+
+    st.markdown("""
+    Le drawdown mesure la baisse du prix depuis son dernier point haut.
+
+    Exemple :
+    si une commodity atteint 100 puis baisse à 80, le drawdown est de -20 %.
+    """)
+
+    drawdowns = metrics["drawdowns"]
+
+    drawdown_df = pd.DataFrame({
+        "Drawdown": drawdowns
+    })
+
+    fig_drawdown = px.line(
+        drawdown_df,
+        y="Drawdown",
+        title=f"{selected_commodity} - Drawdown historique"
+    )
+
+    fig_drawdown.update_layout(
+        xaxis_title="Date",
+        yaxis_title="Drawdown",
         height=450
     )
 
-    st.plotly_chart(fig_hist, width="stretch")
+    st.plotly_chart(fig_drawdown, width="stretch")
 
-    st.subheader("Stress tests")
+    # ========================================================
+    # 10. STRESS TESTS
+    # ========================================================
 
-    shocks = [-0.20, -0.10, -0.05, 0.05, 0.10, 0.20]
+    st.subheader("7. Stress tests")
+
+    st.markdown("""
+    Les stress tests simulent l'impact de grands mouvements de prix sur la position.
+
+    Exemple :
+    - si la position est long, une baisse de prix génère une perte ;
+    - si la position est short, une hausse de prix génère une perte.
+    """)
+
+    stress_shocks = np.array([-0.30, -0.20, -0.10, -0.05, 0.05, 0.10, 0.20, 0.30])
 
     stress_rows = []
 
-    for shock in shocks:
+    for shock in stress_shocks:
+
         if position_direction == "Long":
             stress_pnl = shock * position_value
         else:
@@ -1201,9 +1431,11 @@ with tab4:
 
     stress_df = pd.DataFrame(stress_rows)
 
-    stress_df["Shock de prix"] = stress_df["Shock de prix"].apply(lambda x: f"{x:.0%}")
+    stress_display = stress_df.copy()
+    stress_display["Shock de prix"] = stress_display["Shock de prix"].apply(lambda x: f"{x:.0%}")
+    stress_display["P&L stressé"] = stress_display["P&L stressé"].apply(lambda x: f"{x:,.2f}")
 
-    st.dataframe(stress_df, width="stretch")
+    st.dataframe(stress_display, width="stretch")
 
     fig_stress = px.bar(
         stress_df,
@@ -1219,3 +1451,42 @@ with tab4:
     )
 
     st.plotly_chart(fig_stress, width="stretch")
+
+    # ========================================================
+    # 11. INTERPRÉTATION AUTOMATIQUE
+    # ========================================================
+
+    st.subheader("8. Interprétation automatique")
+
+    if annualized_volatility < 0.20:
+        st.success("""
+        La volatilité annualisée est relativement modérée.
+        Le niveau de risque historique semble limité par rapport à d'autres commodities plus volatiles.
+        """)
+
+    elif annualized_volatility < 0.40:
+        st.warning("""
+        La volatilité annualisée est significative.
+        La position peut connaître des variations importantes, ce qui justifie un suivi régulier du risque.
+        """)
+
+    else:
+        st.error("""
+        La volatilité annualisée est élevée.
+        Cette commodity présente un risque de marché important sur la période analysée.
+        """)
+
+    if var_99 > var_95 * 1.5:
+        st.info("""
+        La VaR 99 % est nettement supérieure à la VaR 95 %.
+        Cela suggère que les pertes extrêmes peuvent être beaucoup plus fortes que les pertes courantes.
+        """)
+
+    if position_direction == "Long":
+        st.markdown("""
+        Pour une position **long**, le principal risque vient d'une baisse du prix de la commodity.
+        """)
+    else:
+        st.markdown("""
+        Pour une position **short**, le principal risque vient d'une hausse du prix de la commodity.
+        """)
