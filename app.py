@@ -240,6 +240,125 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
     st.header("Market Overview")
 
+
+    # ========================================================
+    # MULTI-COMMODITY MARKET SNAPSHOT
+    # ========================================================
+
+    st.subheader("Multi-Commodity Market Snapshot")
+
+    st.markdown("""
+    Ce tableau permet de comparer rapidement les principales matières premières suivies dans le dashboard.
+    Il donne une vision synthétique du marché avec le dernier prix, la performance, la volatilité,
+    le drawdown maximum et la VaR historique.
+    """)
+
+    snapshot_rows = []
+
+    # On boucle sur toutes les commodities du dictionnaire.
+    # Pour chaque commodity, on télécharge les prix et on calcule les métriques.
+    for commodity_name, commodity_ticker in COMMODITY_TICKERS.items():
+
+        commodity_prices = load_price_data(commodity_ticker, selected_period)
+
+        # Si les données sont vides, on ignore la commodity.
+        if commodity_prices.empty:
+            continue
+
+        commodity_metrics = compute_market_metrics(commodity_prices)
+
+        snapshot_rows.append({
+            "Commodity": commodity_name,
+            "Last Price": commodity_metrics["last_price"],
+            "Period Performance": commodity_metrics["period_performance"],
+            "Annualized Volatility": commodity_metrics["annualized_volatility"],
+            "Max Drawdown": commodity_metrics["max_drawdown"],
+            "Historical VaR 95%": commodity_metrics["var_95"]
+        })
+
+    snapshot_df = pd.DataFrame(snapshot_rows)
+
+    # On crée une copie formatée pour l'affichage.
+    # L'idée est de garder snapshot_df en format numérique pour les calculs,
+    # et d'utiliser snapshot_display pour un affichage propre dans Streamlit.
+    snapshot_display = snapshot_df.copy()
+
+    snapshot_display["Last Price"] = snapshot_display["Last Price"].apply(lambda x: f"{x:,.2f}")
+    snapshot_display["Period Performance"] = snapshot_display["Period Performance"].apply(lambda x: f"{x:.2%}")
+    snapshot_display["Annualized Volatility"] = snapshot_display["Annualized Volatility"].apply(lambda x: f"{x:.2%}")
+    snapshot_display["Max Drawdown"] = snapshot_display["Max Drawdown"].apply(lambda x: f"{x:.2%}")
+    snapshot_display["Historical VaR 95%"] = snapshot_display["Historical VaR 95%"].apply(lambda x: f"{x:.2%}")
+
+    st.dataframe(snapshot_display, width="stretch")
+
+    # ========================================================
+    # CROSS-COMMODITY CORRELATION MATRIX
+    # ========================================================
+
+    st.subheader("Cross-Commodity Correlation Matrix")
+
+    st.markdown("""
+    Cette matrice mesure la corrélation entre les rendements journaliers des différentes matières premières.
+
+    Une corrélation proche de **1** signifie que deux commodities ont tendance à évoluer dans le même sens.  
+    Une corrélation proche de **0** signifie qu'il y a peu de relation linéaire.  
+    Une corrélation négative signifie qu'elles ont tendance à évoluer en sens opposé.
+    """)
+
+    all_returns = {}
+
+    # On récupère les rendements journaliers pour chaque commodity.
+    for commodity_name, commodity_ticker in COMMODITY_TICKERS.items():
+
+        commodity_prices = load_price_data(commodity_ticker, selected_period)
+
+        if commodity_prices.empty:
+            continue
+
+        # Rendement journalier :
+        # Return_t = Price_t / Price_t-1 - 1
+        commodity_returns = commodity_prices.pct_change().dropna()
+
+        all_returns[commodity_name] = commodity_returns
+
+    # On rassemble tous les rendements dans un seul DataFrame.
+    # Chaque colonne correspond à une commodity.
+    returns_matrix = pd.DataFrame(all_returns)
+
+    # On supprime les dates où certaines commodities n'ont pas de données.
+    returns_matrix = returns_matrix.dropna()
+
+    if returns_matrix.empty:
+        st.warning("Pas assez de données pour calculer la matrice de corrélation.")
+    else:
+        # La corrélation est calculée sur les rendements, pas sur les prix.
+        # C'est important car on veut comparer les variations, pas les niveaux de prix.
+        correlation_matrix = returns_matrix.corr()
+
+        fig_corr = px.imshow(
+            correlation_matrix,
+            text_auto=".2f",
+            title="Correlation Matrix - Daily Returns",
+            aspect="auto"
+        )
+
+        fig_corr.update_layout(
+            height=600
+        )
+
+        st.plotly_chart(fig_corr, width="stretch")
+
+        st.markdown("""
+        **Interprétation rapide :**
+
+        - Une corrélation élevée entre deux commodities peut indiquer une exposition commune à certains facteurs de marché.
+        - Une corrélation faible peut être intéressante dans une logique de diversification.
+        - Cette analyse est utile pour comprendre les risques croisés entre plusieurs marchés de matières premières.
+        """)
+
+    st.markdown("---")
+
+
     st.markdown("""
     Cette partie affiche les prix historiques de la commodity sélectionnée
     et calcule les principaux indicateurs de marché.
@@ -310,7 +429,7 @@ with tab1:
         height=500
     )
 
-    st.plotly_chart(fig_price, use_container_width=True)
+    st.plotly_chart(fig_price, width="stretch")
 
     # Graphique des rendements journaliers.
     returns_df = metrics["returns"].to_frame(name="Daily Returns")
@@ -327,7 +446,7 @@ with tab1:
         height=400
     )
 
-    st.plotly_chart(fig_returns, use_container_width=True)
+    st.plotly_chart(fig_returns, width="stretch")
 
 
 # ============================================================
@@ -416,7 +535,7 @@ with tab2:
         height=500
     )
 
-    st.plotly_chart(fig_curve, use_container_width=True)
+    st.plotly_chart(fig_curve, width="stretch")
 
     st.markdown("""
     **Interprétation :**
@@ -547,7 +666,7 @@ with tab3:
         "Montant": [physical_pnl, futures_pnl, net_pnl]
     })
 
-    st.dataframe(pnl_df, use_container_width=True)
+    st.dataframe(pnl_df, width="stretch")
 
     # Création d'un scénario de prix pour comparer sans couverture vs avec couverture.
     scenario_prices = np.array([
@@ -583,7 +702,7 @@ with tab3:
 
     st.subheader("Analyse par scénarios")
 
-    st.dataframe(scenario_df, use_container_width=True)
+    st.dataframe(scenario_df, width="stretch")
 
     fig_hedge = go.Figure()
 
@@ -608,7 +727,7 @@ with tab3:
         height=500
     )
 
-    st.plotly_chart(fig_hedge, use_container_width=True)
+    st.plotly_chart(fig_hedge, width="stretch")
 
 
 # ============================================================
@@ -691,7 +810,7 @@ with tab4:
         height=450
     )
 
-    st.plotly_chart(fig_hist, use_container_width=True)
+    st.plotly_chart(fig_hist, width="stretch")
 
     st.subheader("Stress tests")
 
@@ -714,7 +833,7 @@ with tab4:
 
     stress_df["Shock de prix"] = stress_df["Shock de prix"].apply(lambda x: f"{x:.0%}")
 
-    st.dataframe(stress_df, use_container_width=True)
+    st.dataframe(stress_df, width="stretch")
 
     fig_stress = px.bar(
         stress_df,
@@ -729,4 +848,4 @@ with tab4:
         height=450
     )
 
-    st.plotly_chart(fig_stress, use_container_width=True)
+    st.plotly_chart(fig_stress, width="stretch")
