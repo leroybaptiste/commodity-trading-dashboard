@@ -666,14 +666,43 @@ with tab3:
     st.markdown("""
     Cette partie simule une couverture avec contrats futures.
 
-    Exemple :
-    - une entreprise qui doit acheter une matière première craint une hausse du prix ;
-    - elle peut prendre une position long futures pour se couvrir ;
-    - une entreprise qui vend une matière première craint une baisse du prix ;
-    - elle peut prendre une position short futures pour se couvrir.
+    L'objectif est de comparer :
+    - le P&L d'une exposition physique non couverte ;
+    - le P&L de la position futures ;
+    - le P&L net après couverture.
+
+    Ce module permet de comprendre comment une entreprise peut réduire son risque de prix
+    sur une matière première.
     """)
 
-    st.subheader("Hypothèses de couverture")
+    # ========================================================
+    # 1. DEFAULT CONTRACT SIZES
+    # ========================================================
+
+    # Taille standard indicative de certains contrats futures.
+    # L'objectif est pédagogique : l'utilisateur peut modifier la taille manuellement.
+    default_contract_sizes = {
+        "WTI Crude Oil": 1000.0,      # 1 contrat WTI CME = 1 000 barils
+        "Brent Crude Oil": 1000.0,    # ordre de grandeur classique = 1 000 barils
+        "Natural Gas": 10000.0,       # 1 contrat Henry Hub = 10 000 MMBtu
+        "Gold": 100.0,                # 1 contrat Gold = 100 onces troy
+        "Copper": 25000.0,            # 1 contrat Copper = 25 000 livres
+        "Wheat": 5000.0,              # 1 contrat Wheat CBOT = 5 000 bushels
+        "Corn": 5000.0                # 1 contrat Corn CBOT = 5 000 bushels
+    }
+
+    default_contract_size = default_contract_sizes.get(selected_commodity, 1.0)
+
+    st.info("""
+    Important : la quantité physique et la taille du contrat doivent être exprimées dans la même unité.
+    Exemple : si le contrat est en barils, la quantité physique doit aussi être en barils.
+    """)
+
+    # ========================================================
+    # 2. INPUTS DE L'EXPOSITION
+    # ========================================================
+
+    st.subheader("1. Exposition physique")
 
     col1, col2 = st.columns(2)
 
@@ -681,27 +710,20 @@ with tab3:
         exposure_type = st.selectbox(
             "Type d'exposition",
             [
-                "Buyer / Consumer - risque de hausse du prix",
-                "Producer / Seller - risque de baisse du prix"
+                "Buyer / Consumer - veut se protéger contre une hausse du prix",
+                "Producer / Seller - veut se protéger contre une baisse du prix"
             ]
         )
 
-        quantity = st.number_input(
-            "Quantité physique à couvrir",
+        physical_quantity = st.number_input(
+            "Quantité physique exposée",
             min_value=0.0,
             value=10000.0,
             step=100.0
         )
 
-        contract_size = st.number_input(
-            "Taille d'un contrat futures",
-            min_value=1.0,
-            value=50.0,
-            step=1.0
-        )
-
-        hedge_ratio = st.slider(
-            "Hedge ratio",
+        target_hedge_ratio = st.slider(
+            "Hedge ratio cible",
             min_value=0.0,
             max_value=1.0,
             value=1.0,
@@ -716,17 +738,26 @@ with tab3:
             step=0.1
         )
 
+        spot_final = st.number_input(
+            "Prix spot final simulé",
+            min_value=0.0,
+            value=float(metrics["last_price"] * 1.10),
+            step=0.1
+        )
+
+    # ========================================================
+    # 3. INPUTS DE LA COUVERTURE FUTURES
+    # ========================================================
+
+    st.subheader("2. Couverture futures")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
         futures_initial = st.number_input(
             "Prix futures initial",
             min_value=0.0,
             value=float(metrics["last_price"]),
-            step=0.1
-        )
-
-        final_price = st.number_input(
-            "Prix spot final simulé",
-            min_value=0.0,
-            value=float(metrics["last_price"] * 1.10),
             step=0.1
         )
 
@@ -737,107 +768,336 @@ with tab3:
             step=0.1
         )
 
-    # Quantité réellement couverte.
-    hedged_quantity = quantity * hedge_ratio
+    with col2:
+        contract_size = st.number_input(
+            "Taille d'un contrat futures",
+            min_value=1.0,
+            value=float(default_contract_size),
+            step=1.0
+        )
 
-    # Nombre théorique de contrats futures.
-    # Formule : N = quantité à couvrir / taille d'un contrat
-    number_of_contracts_exact = hedged_quantity / contract_size
+        rounding_method = st.selectbox(
+            "Méthode d'arrondi du nombre de contrats",
+            ["Arrondi au plus proche", "Arrondi inférieur", "Arrondi supérieur"]
+        )
 
-    # En pratique, on ne peut pas toujours acheter 200,4 contrats.
-    # On arrondit donc au contrat entier le plus proche.
-    number_of_contracts = round(number_of_contracts_exact)
+    # ========================================================
+    # 4. CALCUL DU NOMBRE DE CONTRATS
+    # ========================================================
 
-    # P&L physique.
-    # Pour un acheteur, si le prix monte, c'est une perte car son coût d'achat augmente.
-    # Pour un producteur/vendeur, si le prix monte, c'est un gain car il vend plus cher.
-    if exposure_type.startswith("Buyer"):
-        physical_pnl = -(final_price - spot_initial) * quantity
-        futures_pnl = (futures_final - futures_initial) * number_of_contracts * contract_size
-        hedge_position = "Long futures"
+    # Quantité que l'on souhaite couvrir.
+    # Formule : Quantité couverte = Quantité physique x Hedge ratio cible
+    target_hedged_quantity = physical_quantity * target_hedge_ratio
+
+    # Nombre exact de contrats.
+    # Formule : Nombre de contrats = Quantité à couvrir / Taille du contrat
+    exact_number_of_contracts = target_hedged_quantity / contract_size
+
+    # En pratique, on ne peut pas toujours prendre 2,4 contrats.
+    # Il faut donc arrondir à un nombre entier.
+    if rounding_method == "Arrondi au plus proche":
+        rounded_number_of_contracts = int(round(exact_number_of_contracts))
+    elif rounding_method == "Arrondi inférieur":
+        rounded_number_of_contracts = int(np.floor(exact_number_of_contracts))
     else:
-        physical_pnl = (final_price - spot_initial) * quantity
-        futures_pnl = (futures_initial - futures_final) * number_of_contracts * contract_size
+        rounded_number_of_contracts = int(np.ceil(exact_number_of_contracts))
+
+    # Quantité réellement couverte après arrondi.
+    actual_hedged_quantity = rounded_number_of_contracts * contract_size
+
+    # Hedge ratio réel après arrondi.
+    # Il peut être différent du hedge ratio cible.
+    if physical_quantity > 0:
+        actual_hedge_ratio = actual_hedged_quantity / physical_quantity
+    else:
+        actual_hedge_ratio = 0.0
+
+    # ========================================================
+    # 5. CALCUL DU P&L
+    # ========================================================
+
+    # Pour un acheteur/consommateur :
+    # - il craint une hausse du prix ;
+    # - il se couvre avec une position long futures ;
+    # - si le prix monte, la perte physique est compensée par un gain futures.
+    #
+    # Pour un producteur/vendeur :
+    # - il craint une baisse du prix ;
+    # - il se couvre avec une position short futures ;
+    # - si le prix baisse, la perte physique est compensée par un gain futures.
+
+    if exposure_type.startswith("Buyer"):
+        hedge_position = "Long futures"
+
+        # P&L physique pour un acheteur.
+        # Si le prix final est supérieur au prix initial, il paie plus cher, donc P&L négatif.
+        physical_pnl = -(spot_final - spot_initial) * physical_quantity
+
+        # P&L futures pour une position long.
+        # Si le prix futures monte, la position long gagne.
+        futures_pnl = (futures_final - futures_initial) * rounded_number_of_contracts * contract_size
+
+        # Prix effectif payé après couverture.
+        # Coût physique final = spot_final x quantité.
+        # Gain futures réduit ce coût.
+        if physical_quantity > 0:
+            effective_price = (spot_final * physical_quantity - futures_pnl) / physical_quantity
+        else:
+            effective_price = np.nan
+
+    else:
         hedge_position = "Short futures"
 
+        # P&L physique pour un producteur.
+        # Si le prix final monte, il vend plus cher, donc P&L positif.
+        physical_pnl = (spot_final - spot_initial) * physical_quantity
+
+        # P&L futures pour une position short.
+        # Si le prix futures baisse, la position short gagne.
+        futures_pnl = (futures_initial - futures_final) * rounded_number_of_contracts * contract_size
+
+        # Prix effectif reçu après couverture.
+        # Revenu physique final = spot_final x quantité.
+        # Gain futures augmente ce revenu.
+        if physical_quantity > 0:
+            effective_price = (spot_final * physical_quantity + futures_pnl) / physical_quantity
+        else:
+            effective_price = np.nan
+
+    # P&L net après couverture.
     net_pnl = physical_pnl + futures_pnl
+
+    # Basis initial et final.
+    # Basis = Spot - Futures.
+    # Le basis risk apparaît si le spot et le futures ne bougent pas parfaitement ensemble.
+    basis_initial = spot_initial - futures_initial
+    basis_final = spot_final - futures_final
+    basis_change = basis_final - basis_initial
+
+    # ========================================================
+    # 6. AFFICHAGE DES RÉSULTATS PRINCIPAUX
+    # ========================================================
+
+    st.subheader("3. Résultats de la couverture")
 
     col1, col2, col3, col4 = st.columns(4)
 
-    col1.metric("Position de couverture", hedge_position)
-    col2.metric("Nombre de contrats", f"{number_of_contracts}")
-    col3.metric("P&L sans couverture", format_number(physical_pnl))
-    col4.metric("P&L avec couverture", format_number(net_pnl))
+    col1.metric("Position futures", hedge_position)
+    col2.metric("Contrats exacts", format_number(exact_number_of_contracts))
+    col3.metric("Contrats arrondis", f"{rounded_number_of_contracts}")
+    col4.metric("Hedge ratio réel", format_percentage(actual_hedge_ratio))
 
-    st.subheader("Détail du P&L")
+    col1, col2, col3, col4 = st.columns(4)
 
-    pnl_df = pd.DataFrame({
-        "Composante": ["P&L physique", "P&L futures", "P&L net"],
-        "Montant": [physical_pnl, futures_pnl, net_pnl]
+    col1.metric("P&L physique", format_number(physical_pnl))
+    col2.metric("P&L futures", format_number(futures_pnl))
+    col3.metric("P&L net", format_number(net_pnl))
+    col4.metric("Prix effectif", format_number(effective_price))
+
+    # ========================================================
+    # 7. TABLEAU DE SYNTHÈSE
+    # ========================================================
+
+    summary_df = pd.DataFrame({
+        "Indicateur": [
+            "Quantité physique",
+            "Quantité cible couverte",
+            "Quantité réellement couverte",
+            "Hedge ratio cible",
+            "Hedge ratio réel",
+            "Basis initial",
+            "Basis final",
+            "Variation du basis",
+            "P&L physique",
+            "P&L futures",
+            "P&L net",
+            "Prix effectif"
+        ],
+        "Valeur": [
+            physical_quantity,
+            target_hedged_quantity,
+            actual_hedged_quantity,
+            target_hedge_ratio,
+            actual_hedge_ratio,
+            basis_initial,
+            basis_final,
+            basis_change,
+            physical_pnl,
+            futures_pnl,
+            net_pnl,
+            effective_price
+        ]
     })
 
-    st.dataframe(pnl_df, width="stretch")
+    summary_display = summary_df.copy()
 
-    # Création d'un scénario de prix pour comparer sans couverture vs avec couverture.
-    scenario_prices = np.array([
-        spot_initial * 0.80,
-        spot_initial * 0.90,
-        spot_initial,
-        spot_initial * 1.10,
-        spot_initial * 1.20
-    ])
+    # Formatage simple pour l'affichage.
+    summary_display["Valeur"] = summary_display["Valeur"].apply(
+        lambda x: f"{x:,.2f}" if isinstance(x, (int, float, np.floating)) else x
+    )
+
+    st.dataframe(summary_display, width="stretch")
+
+    # ========================================================
+    # 8. ANALYSE PAR SCÉNARIOS
+    # ========================================================
+
+    st.subheader("4. Analyse par scénarios")
+
+    st.markdown("""
+    Cette partie compare le P&L sans couverture et avec couverture selon différents scénarios de prix.
+    """)
+
+    futures_sensitivity = st.slider(
+        "Sensibilité du futures au mouvement du spot",
+        min_value=0.0,
+        max_value=1.5,
+        value=1.0,
+        step=0.05
+    )
+
+    st.caption("""
+    Une sensibilité de 1 signifie que le futures évolue comme le spot.
+    Une sensibilité différente de 1 permet de simuler du basis risk.
+    """)
+
+    price_shocks = np.array([-0.20, -0.10, -0.05, 0.00, 0.05, 0.10, 0.20])
 
     scenario_rows = []
 
-    for scenario_price in scenario_prices:
-        scenario_futures_final = scenario_price
+    for shock in price_shocks:
+        scenario_spot_final = spot_initial * (1 + shock)
+
+        # On simule le prix futures final à partir du mouvement du spot.
+        scenario_futures_final = futures_initial + (scenario_spot_final - spot_initial) * futures_sensitivity
 
         if exposure_type.startswith("Buyer"):
-            scenario_physical_pnl = -(scenario_price - spot_initial) * quantity
-            scenario_futures_pnl = (scenario_futures_final - futures_initial) * number_of_contracts * contract_size
+            scenario_physical_pnl = -(scenario_spot_final - spot_initial) * physical_quantity
+            scenario_futures_pnl = (scenario_futures_final - futures_initial) * rounded_number_of_contracts * contract_size
+
+            if physical_quantity > 0:
+                scenario_effective_price = (
+                    scenario_spot_final * physical_quantity - scenario_futures_pnl
+                ) / physical_quantity
+            else:
+                scenario_effective_price = np.nan
+
         else:
-            scenario_physical_pnl = (scenario_price - spot_initial) * quantity
-            scenario_futures_pnl = (futures_initial - scenario_futures_final) * number_of_contracts * contract_size
+            scenario_physical_pnl = (scenario_spot_final - spot_initial) * physical_quantity
+            scenario_futures_pnl = (futures_initial - scenario_futures_final) * rounded_number_of_contracts * contract_size
+
+            if physical_quantity > 0:
+                scenario_effective_price = (
+                    scenario_spot_final * physical_quantity + scenario_futures_pnl
+                ) / physical_quantity
+            else:
+                scenario_effective_price = np.nan
 
         scenario_net_pnl = scenario_physical_pnl + scenario_futures_pnl
 
         scenario_rows.append({
-            "Prix final": scenario_price,
+            "Shock de prix": shock,
+            "Prix spot final": scenario_spot_final,
+            "Prix futures final": scenario_futures_final,
             "P&L sans couverture": scenario_physical_pnl,
             "P&L futures": scenario_futures_pnl,
-            "P&L avec couverture": scenario_net_pnl
+            "P&L avec couverture": scenario_net_pnl,
+            "Prix effectif": scenario_effective_price
         })
 
     scenario_df = pd.DataFrame(scenario_rows)
 
-    st.subheader("Analyse par scénarios")
+    scenario_display = scenario_df.copy()
+    scenario_display["Shock de prix"] = scenario_display["Shock de prix"].apply(lambda x: f"{x:.0%}")
 
-    st.dataframe(scenario_df, width="stretch")
+    for column in [
+        "Prix spot final",
+        "Prix futures final",
+        "P&L sans couverture",
+        "P&L futures",
+        "P&L avec couverture",
+        "Prix effectif"
+    ]:
+        scenario_display[column] = scenario_display[column].apply(lambda x: f"{x:,.2f}")
 
+    st.dataframe(scenario_display, width="stretch")
+
+    # Graphique comparant le P&L sans couverture et avec couverture.
     fig_hedge = go.Figure()
 
     fig_hedge.add_trace(go.Scatter(
-        x=scenario_df["Prix final"],
+        x=scenario_df["Prix spot final"],
         y=scenario_df["P&L sans couverture"],
         mode="lines+markers",
         name="Sans couverture"
     ))
 
     fig_hedge.add_trace(go.Scatter(
-        x=scenario_df["Prix final"],
+        x=scenario_df["Prix spot final"],
         y=scenario_df["P&L avec couverture"],
         mode="lines+markers",
         name="Avec couverture"
     ))
 
+    fig_hedge.add_trace(go.Scatter(
+        x=scenario_df["Prix spot final"],
+        y=scenario_df["P&L futures"],
+        mode="lines+markers",
+        name="P&L futures"
+    ))
+
     fig_hedge.update_layout(
-        title="Comparaison P&L avec et sans couverture",
-        xaxis_title="Prix final",
+        title="P&L avec et sans couverture",
+        xaxis_title="Prix spot final",
         yaxis_title="P&L",
         height=500
     )
 
     st.plotly_chart(fig_hedge, width="stretch")
+
+    # ========================================================
+    # 9. INTERPRÉTATION AUTOMATIQUE
+    # ========================================================
+
+    st.subheader("5. Interprétation automatique")
+
+    if exposure_type.startswith("Buyer"):
+        st.success("""
+        Cette exposition correspond à un **buyer hedge**.
+
+        L'entreprise doit acheter la matière première plus tard.
+        Elle craint donc une hausse du prix.
+
+        La couverture adaptée est une position **long futures** :
+        - si le prix monte, le coût physique augmente ;
+        - mais la position futures génère un gain ;
+        - ce gain compense tout ou partie de la hausse du coût d'achat.
+        """)
+
+    else:
+        st.success("""
+        Cette exposition correspond à un **producer hedge**.
+
+        L'entreprise doit vendre la matière première plus tard.
+        Elle craint donc une baisse du prix.
+
+        La couverture adaptée est une position **short futures** :
+        - si le prix baisse, le revenu physique diminue ;
+        - mais la position futures génère un gain ;
+        - ce gain compense tout ou partie de la baisse du prix de vente.
+        """)
+
+    if abs(actual_hedge_ratio - target_hedge_ratio) > 0.05:
+        st.warning("""
+        Attention : le hedge ratio réel est assez différent du hedge ratio cible.
+        Cela vient de l'arrondi du nombre de contrats futures.
+        """)
+
+    if abs(basis_change) > 0.01:
+        st.info("""
+        Le basis a changé entre le début et la fin de la période.
+        Cela illustre le **basis risk** : le spot et le futures ne bougent pas toujours parfaitement ensemble.
+        """)
 
 
 # ============================================================
