@@ -457,27 +457,58 @@ with tab2:
     st.header("Futures Curve Analysis")
 
     st.markdown("""
-    Cette partie permet de construire une courbe futures simple à partir de prix par maturité.
+    Cette partie analyse une courbe futures simplifiée.
 
-    Pour l'instant, les prix sont entrés manuellement.  
-    Plus tard, on pourra automatiser la récupération des contrats futures par maturité.
+    En commodity trading, la forme de la courbe futures est très importante :
+    - une courbe en **contango** signifie que les prix futures longs sont supérieurs aux prix courts ;
+    - une courbe en **backwardation** signifie que les prix futures longs sont inférieurs aux prix courts ;
+    - cette structure influence le roll yield, le coût de portage et les stratégies de trading.
     """)
 
-    st.subheader("Input de la courbe futures")
+    st.subheader("1. Paramètres de la courbe")
 
-    # On utilise le dernier prix comme base pour proposer des valeurs par défaut.
+    # On utilise le dernier prix observé comme base de départ.
+    # Cela permet d'avoir des valeurs cohérentes avec la commodity sélectionnée.
     base_price = float(metrics["last_price"])
 
+    col1, col2 = st.columns(2)
+
+    with col1:
+        curve_scenario = st.selectbox(
+            "Scénario de courbe",
+            ["Contango", "Backwardation", "Flat"]
+        )
+
+    with col2:
+        curve_intensity = st.slider(
+            "Intensité de la pente",
+            min_value=0.0,
+            max_value=0.20,
+            value=0.05,
+            step=0.01
+        )
+
+    # Liste des maturités utilisées.
     maturities = ["M1", "M2", "M3", "M6", "M12"]
 
-    # Valeurs par défaut légèrement en contango.
-    default_curve = {
-        "M1": base_price,
-        "M2": base_price * 1.005,
-        "M3": base_price * 1.010,
-        "M6": base_price * 1.020,
-        "M12": base_price * 1.040
-    }
+    # Coefficients approximatifs pour représenter l'éloignement des maturités.
+    # M1 est la première maturité, M12 la maturité la plus longue.
+    maturity_factors = np.array([0.00, 0.20, 0.35, 0.60, 1.00])
+
+    # Construction automatique d'une courbe par défaut selon le scénario choisi.
+    if curve_scenario == "Contango":
+        default_curve_prices = base_price * (1 + curve_intensity * maturity_factors)
+    elif curve_scenario == "Backwardation":
+        default_curve_prices = base_price * (1 - curve_intensity * maturity_factors)
+    else:
+        default_curve_prices = base_price * np.ones(len(maturities))
+
+    st.subheader("2. Prix futures par maturité")
+
+    st.markdown("""
+    Les prix ci-dessous sont modifiables manuellement.  
+    Cela permet de tester différentes formes de courbe futures.
+    """)
 
     curve_prices = []
 
@@ -487,46 +518,59 @@ with tab2:
         price = cols[i].number_input(
             f"Prix {maturity}",
             min_value=0.0,
-            value=float(default_curve[maturity]),
+            value=float(default_curve_prices[i]),
             step=0.1
         )
         curve_prices.append(price)
 
+    # Création du DataFrame de courbe.
     curve_df = pd.DataFrame({
         "Maturity": maturities,
         "Futures Price": curve_prices
     })
 
-    # Spread entre la maturité longue et la maturité courte.
-    # Si M12 > M1, la courbe est en contango.
-    # Si M12 < M1, la courbe est en backwardation.
-    spread_m12_m1 = curve_prices[-1] - curve_prices[0]
+    # Prix de la première maturité.
+    front_price = curve_prices[0]
 
+    # Prix de la maturité la plus longue.
+    long_price = curve_prices[-1]
+
+    # Spread entre M12 et M1.
+    spread_m12_m1 = long_price - front_price
+
+    # Pente relative de la courbe.
+    # Formule : Slope = M12 / M1 - 1
+    curve_slope = long_price / front_price - 1
+
+    # Roll yield approximatif pour une position long.
+    # Si la courbe est en contango, le roll yield long est généralement négatif.
+    # Si la courbe est en backwardation, le roll yield long est généralement positif.
+    roll_yield_approx = (front_price - long_price) / front_price
+
+    # Détection automatique de la structure.
     if spread_m12_m1 > 0:
-        curve_structure = "Contango"
+        detected_structure = "Contango"
     elif spread_m12_m1 < 0:
-        curve_structure = "Backwardation"
+        detected_structure = "Backwardation"
     else:
-        curve_structure = "Flat"
+        detected_structure = "Flat"
 
-    # Roll yield pédagogique.
-    # Approximation simple :
-    # Si la courbe est en backwardation, le roll yield est souvent positif pour un investisseur long.
-    # Si la courbe est en contango, le roll yield est souvent négatif pour un investisseur long.
-    roll_yield_approx = (curve_prices[0] - curve_prices[-1]) / curve_prices[0]
+    st.subheader("3. Indicateurs de structure de courbe")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
-    col1.metric("Structure de courbe", curve_structure)
+    col1.metric("Structure détectée", detected_structure)
     col2.metric("Spread M12 - M1", format_number(spread_m12_m1))
-    col3.metric("Roll yield approx.", format_percentage(roll_yield_approx))
+    col3.metric("Pente M12 / M1", format_percentage(curve_slope))
+    col4.metric("Roll yield approx.", format_percentage(roll_yield_approx))
 
+    # Graphique de la courbe futures.
     fig_curve = px.line(
         curve_df,
         x="Maturity",
         y="Futures Price",
         markers=True,
-        title=f"{selected_commodity} - Courbe futures simplifiée"
+        title=f"{selected_commodity} - Futures Curve"
     )
 
     fig_curve.update_layout(
@@ -537,14 +581,80 @@ with tab2:
 
     st.plotly_chart(fig_curve, width="stretch")
 
-    st.markdown("""
-    **Interprétation :**
+    st.subheader("4. Analyse des spreads")
 
-    - **Contango** : les prix futures longs sont supérieurs aux prix futures courts.
-    - **Backwardation** : les prix futures longs sont inférieurs aux prix futures courts.
-    - Le **spread M12 - M1** mesure la pente entre la maturité longue et la maturité courte.
-    """)
+    # On calcule les spreads de chaque maturité par rapport à M1.
+    # Exemple : Spread M6-M1 = Prix M6 - Prix M1
+    spread_rows = []
 
+    for maturity, price in zip(maturities, curve_prices):
+        spread = price - front_price
+        spread_percentage = spread / front_price
+
+        spread_rows.append({
+            "Maturity": maturity,
+            "Futures Price": price,
+            "Spread vs M1": spread,
+            "Spread vs M1 (%)": spread_percentage
+        })
+
+    spread_df = pd.DataFrame(spread_rows)
+
+    # Version formatée pour l'affichage.
+    spread_display = spread_df.copy()
+    spread_display["Futures Price"] = spread_display["Futures Price"].apply(lambda x: f"{x:,.2f}")
+    spread_display["Spread vs M1"] = spread_display["Spread vs M1"].apply(lambda x: f"{x:,.2f}")
+    spread_display["Spread vs M1 (%)"] = spread_display["Spread vs M1 (%)"].apply(lambda x: f"{x:.2%}")
+
+    st.dataframe(spread_display, width="stretch")
+
+    # Graphique des spreads.
+    fig_spreads = px.bar(
+        spread_df,
+        x="Maturity",
+        y="Spread vs M1",
+        title="Spreads par rapport à M1"
+    )
+
+    fig_spreads.update_layout(
+        xaxis_title="Maturité",
+        yaxis_title="Spread vs M1",
+        height=450
+    )
+
+    st.plotly_chart(fig_spreads, width="stretch")
+
+    st.subheader("5. Interprétation automatique")
+
+    if detected_structure == "Contango":
+        st.warning("""
+        La courbe est en **contango**.
+
+        Interprétation :
+        - les maturités longues sont plus chères que les maturités courtes ;
+        - cela peut refléter des coûts de stockage, de financement ou une anticipation de hausse des prix ;
+        - pour un investisseur long qui roule sa position, le roll yield est généralement négatif.
+        """)
+
+    elif detected_structure == "Backwardation":
+        st.success("""
+        La courbe est en **backwardation**.
+
+        Interprétation :
+        - les maturités courtes sont plus chères que les maturités longues ;
+        - cela peut refléter une tension court terme sur l'offre physique ;
+        - pour un investisseur long qui roule sa position, le roll yield est généralement positif.
+        """)
+
+    else:
+        st.info("""
+        La courbe est relativement **flat**.
+
+        Interprétation :
+        - les prix futures sont proches entre les maturités ;
+        - le marché ne montre pas de pente marquée ;
+        - le roll yield approximatif est proche de zéro.
+        """)
 
 # ============================================================
 # TAB 3 - HEDGING SIMULATOR
