@@ -32,9 +32,15 @@ st.set_page_config(
 st.title("Commodity Trading & Hedging Dashboard")
 
 st.markdown("""
-Ce dashboard permet de suivre des matières premières, d'analyser les prix,
-de visualiser une courbe futures, de simuler une couverture et de calculer
-des indicateurs de risque.
+Dashboard interactif de suivi des marchés de matières premières, construit avec Python et Streamlit.
+
+L'objectif est de reproduire un outil simple de suivi marché, de couverture et de gestion du risque, 
+applicable à des problématiques de commodity trading et de hedging.
+""")
+
+st.info("""
+Le dashboard est structuré en quatre modules : Market Overview, Futures Curve Analysis, 
+Hedging Simulator et Risk Management.
 """)
 
 
@@ -192,7 +198,12 @@ def format_number(value):
 # SIDEBAR
 # ============================================================
 
-st.sidebar.header("Paramètres")
+st.sidebar.title("Dashboard Settings")
+
+st.sidebar.markdown("""
+Sélectionne une matière première et une période d'analyse.
+Ces paramètres alimentent les modules de marché, de risque et de couverture.
+""")
 
 selected_commodity = st.sidebar.selectbox(
     "Commodity",
@@ -200,12 +211,29 @@ selected_commodity = st.sidebar.selectbox(
 )
 
 selected_period = st.sidebar.selectbox(
-    "Période historique",
+    "Historical period",
     ["1mo", "3mo", "6mo", "1y", "3y", "5y"],
     index=3
 )
 
 ticker = COMMODITY_TICKERS[selected_commodity]
+
+st.sidebar.markdown("---")
+
+st.sidebar.markdown(f"""
+**Selected commodity**  
+{selected_commodity}
+
+**Yahoo Finance ticker**  
+{ticker}
+""")
+
+st.sidebar.markdown("---")
+
+st.sidebar.caption("""
+Data source: Yahoo Finance via yfinance.  
+Calculations are based on historical daily closing prices.
+""")
 
 
 # ============================================================
