@@ -24,7 +24,11 @@ from src.market_utils import (
     format_number
 )
 
-from src.excel_export import create_market_excel_report
+from src.excel_export import (
+    create_market_excel_report,
+    create_hedging_excel_report
+)
+
 
 # ============================================================
 # CONFIGURATION DE LA PAGE STREAMLIT
@@ -935,6 +939,33 @@ with tab3:
         scenario_display[column] = scenario_display[column].apply(lambda x: f"{x:,.2f}")
 
     st.dataframe(scenario_display, width="stretch")
+
+    # ========================================================
+    # EXCEL EXPORT - HEDGING SIMULATOR
+    # ========================================================
+
+    st.subheader("Export Excel")
+
+    st.markdown("""
+    Ce bouton permet de télécharger un fichier Excel contenant la synthèse de la couverture
+    et l'analyse par scénarios.
+    """)
+
+    hedging_excel_report = create_hedging_excel_report(
+        summary_df=summary_df,
+        scenario_df=scenario_df,
+        selected_commodity=selected_commodity,
+        selected_period=selected_period
+    )
+
+    clean_commodity_name = selected_commodity.lower().replace(" ", "_").replace("/", "_")
+
+    st.download_button(
+        label="Télécharger le rapport Excel de couverture",
+        data=hedging_excel_report,
+        file_name=f"hedging_report_{clean_commodity_name}_{selected_period}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
     # Graphique comparant le P&L sans couverture et avec couverture.
     fig_hedge = go.Figure()
