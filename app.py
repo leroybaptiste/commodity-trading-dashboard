@@ -23,6 +23,9 @@ from src.market_utils import (
     format_percentage,
     format_number
 )
+
+from src.excel_export import create_market_excel_report
+
 # ============================================================
 # CONFIGURATION DE LA PAGE STREAMLIT
 # ============================================================
@@ -208,6 +211,10 @@ with tab1:
     # On supprime les dates où certaines commodities n'ont pas de données.
     returns_matrix = returns_matrix.dropna()
 
+    # On initialise une matrice vide.
+    # Cela évite une erreur si les données sont insuffisantes.
+    correlation_matrix = pd.DataFrame()
+
     if returns_matrix.empty:
         st.warning("Pas assez de données pour calculer la matrice de corrélation.")
     else:
@@ -235,9 +242,36 @@ with tab1:
         - Une corrélation faible peut être intéressante dans une logique de diversification.
         - Cette analyse est utile pour comprendre les risques croisés entre plusieurs marchés de matières premières.
         """)
+    # ========================================================
+    # EXCEL EXPORT - MARKET OVERVIEW
+    # ========================================================
+
+    st.subheader("Export Excel")
+
+    st.markdown("""
+    Ce bouton permet de télécharger un fichier Excel contenant le tableau de marché,
+    la matrice de corrélation et les informations principales du rapport.
+    """)
+
+    excel_report = create_market_excel_report(
+        snapshot_df=snapshot_df,
+        correlation_matrix=correlation_matrix,
+        selected_commodity=selected_commodity,
+        selected_period=selected_period
+    )
+
+    clean_commodity_name = selected_commodity.lower().replace(" ", "_").replace("/", "_")
+
+    st.download_button(
+        label="Télécharger le rapport Excel",
+        data=excel_report,
+        file_name=f"market_overview_{clean_commodity_name}_{selected_period}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
     st.markdown("---")
 
+    st.markdown("---")
 
     st.markdown("""
     Cette partie affiche les prix historiques de la commodity sélectionnée
