@@ -26,7 +26,8 @@ from src.market_utils import (
 
 from src.excel_export import (
     create_market_excel_report,
-    create_hedging_excel_report
+    create_hedging_excel_report,
+    create_risk_excel_report
 )
 
 
@@ -1397,6 +1398,36 @@ with tab4:
 
     st.plotly_chart(fig_stress, width="stretch")
 
+    # ========================================================
+    # EXCEL EXPORT - RISK MANAGEMENT
+    # ========================================================
+
+    st.subheader("Export Excel")
+
+    st.markdown("""
+    Ce bouton permet de télécharger un fichier Excel contenant les principaux résultats
+    du module Risk Management : synthèse du risque, P&L historique, P&L cumulé,
+    drawdown et stress tests.
+    """)
+
+    risk_excel_report = create_risk_excel_report(
+        risk_summary_df=risk_summary_df,
+        pnl_df=pnl_df,
+        cumulative_pnl_df=cumulative_pnl_df,
+        drawdown_df=drawdown_df,
+        stress_df=stress_df,
+        selected_commodity=selected_commodity,
+        selected_period=selected_period
+    )
+
+    clean_commodity_name = selected_commodity.lower().replace(" ", "_").replace("/", "_")
+
+    st.download_button(
+        label="Télécharger le rapport Excel de risque",
+        data=risk_excel_report,
+        file_name=f"risk_report_{clean_commodity_name}_{selected_period}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
     # ========================================================
     # 11. INTERPRÉTATION AUTOMATIQUE
     # ========================================================
