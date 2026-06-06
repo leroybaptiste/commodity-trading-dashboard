@@ -43,37 +43,54 @@ from src.options_pricer import (
 )
 
 # ============================================================
-# CONFIGURATION DE LA PAGE STREAMLIT
+# PAGE CONFIGURATION
 # ============================================================
 
 st.set_page_config(
     page_title="Commodity Trading & Hedging Dashboard",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
+
+# ============================================================
+# MAIN HEADER
+# ============================================================
 
 st.title("Commodity Trading & Hedging Dashboard")
 
 st.markdown("""
-Dashboard interactif de suivi des marchés de matières premières, construit avec Python et Streamlit.
-
-L'objectif est de reproduire un outil simple de suivi marché, de couverture et de gestion du risque, 
-applicable à des problématiques de commodity trading et de hedging.
+Interactive Python dashboard for commodity markets, hedging, risk management, trade finance and options pricing.
 """)
 
-st.info("""
-Le dashboard est structuré en quatre modules : Market Overview, Futures Curve Analysis, 
-Hedging Simulator et Risk Management.
+st.markdown("""
+This project combines market data analysis, futures curve interpretation, physical exposure hedging,
+risk metrics, borrowing base logic and Black-76 option pricing in a single practical tool.
 """)
 
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.metric("Modules", "6")
+
+with col2:
+    st.metric("Asset class", "Commodities")
+
+with col3:
+    st.metric("Focus", "Trading & Finance")
+
+st.divider()
+
 # ============================================================
-# SIDEBAR
+# SIDEBAR SETTINGS
 # ============================================================
 
-st.sidebar.title("Dashboard Settings")
+st.sidebar.header("Dashboard Settings")
 
 st.sidebar.markdown("""
-Sélectionne une matière première et une période d'analyse.
-Ces paramètres alimentent les modules de marché, de risque et de couverture.
+Select a commodity and a historical period.
+
+These inputs are used across the market overview, risk management,
+hedging, trade finance and options pricing modules.
 """)
 
 selected_commodity = st.sidebar.selectbox(
@@ -89,23 +106,37 @@ selected_period = st.sidebar.selectbox(
 
 ticker = COMMODITY_TICKERS[selected_commodity]
 
-st.sidebar.markdown("---")
+st.sidebar.divider()
+
+st.sidebar.subheader("Selected Market")
 
 st.sidebar.markdown(f"""
-**Selected commodity**  
+**Commodity**  
 {selected_commodity}
 
 **Yahoo Finance ticker**  
 {ticker}
 """)
 
-st.sidebar.markdown("---")
+st.sidebar.divider()
+
+st.sidebar.subheader("Project Scope")
+
+st.sidebar.markdown("""
+- Market monitoring
+- Futures curve analysis
+- Physical exposure hedging
+- Market risk metrics
+- Borrowing base simulation
+- Black-76 options pricing
+""")
+
+st.sidebar.divider()
 
 st.sidebar.caption("""
 Data source: Yahoo Finance via yfinance.  
 Calculations are based on historical daily closing prices.
 """)
-
 
 # ============================================================
 # CHARGEMENT DES DONNÉES
@@ -126,7 +157,7 @@ metrics = compute_market_metrics(price_series)
 
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "Market Overview",
-    "Futures Curve Analysis",
+    "Futures Curve",
     "Hedging Simulator",
     "Risk Management",
     "Trade Finance",
