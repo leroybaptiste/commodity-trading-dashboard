@@ -30,6 +30,10 @@ from src.excel_export import (
     create_risk_excel_report
 )
 
+from src.trade_finance import (
+    compute_borrowing_base,
+    create_trade_finance_stress_test
+)
 
 # ============================================================
 # CONFIGURATION DE LA PAGE STREAMLIT
@@ -113,13 +117,13 @@ metrics = compute_market_metrics(price_series)
 # TABS PRINCIPAUX
 # ============================================================
 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Market Overview",
     "Futures Curve Analysis",
     "Hedging Simulator",
-    "Risk Management"
+    "Risk Management",
+    "Trade Finance"
 ])
-
 
 # ============================================================
 # TAB 1 - MARKET OVERVIEW
@@ -1465,4 +1469,266 @@ with tab4:
     else:
         st.markdown("""
         Pour une position **short**, le principal risque vient d'une hausse du prix de la commodity.
+        """)
+# ============================================================
+# TAB 5 - TRADE FINANCE / BORROWING BASE
+# ============================================================
+
+with tab5:
+    st.header("Trade Finance / Borrowing Base")
+
+    st.markdown("""
+    Ce module simule le financement d'un stock de matière première.
+
+    Une banque peut financer une entreprise en prenant un stock physique comme collatéral.
+    Le montant finançable dépend généralement :
+    - de la valeur de marché du stock ;
+    - du haircut appliqué par la banque ;
+    - de l'advance rate ;
+    - du montant déjà emprunté ;
+    - de la résistance du collatéral à des stress tests de prix.
+    """)
+
+    # ========================================================
+    # 1. INPUTS
+    # ========================================================
+
+    st.subheader("1. Hypothèses de financement")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        inventory_quantity = st.number_input(
+            "Quantité en stock",
+            min_value=0.0,
+            value=10000.0,
+            step=100.0
+        )
+
+        market_price = st.number_input(
+            "Prix de marché par unité",
+            min_value=0.0,
+            value=float(metrics["last_price"]),
+            step=0.1
+        )
+
+        haircut = st.slider(
+            "Haircut appliqué par la banque",
+            min_value=0.0,
+            max_value=0.50,
+            value=0.10,
+            step=0.01
+        )
+
+    with col2:
+        advance_rate = st.slider(
+            "Advance rate",
+            min_value=0.0,
+            max_value=1.00,
+            value=0.70,
+            step=0.01
+        )
+
+        loan_amount = st.number_input(
+            "Montant du prêt",
+            min_value=0.0,
+            value=500000.0,
+            step=10000.0
+        )
+
+    st.caption("""
+    Le haircut réduit la valeur du collatéral prise en compte par la banque.  
+    L'advance rate correspond à la part de la valeur éligible que la banque accepte effectivement de financer.
+    """)
+
+    # ========================================================
+    # 2. CALCULS PRINCIPAUX
+    # ========================================================
+
+    trade_finance_results = compute_borrowing_base(
+        inventory_quantity=inventory_quantity,
+        market_price=market_price,
+        haircut=haircut,
+        advance_rate=advance_rate,
+        loan_amount=loan_amount
+    )
+
+    inventory_value = trade_finance_results["inventory_value"]
+    eligible_collateral_value = trade_finance_results["eligible_collateral_value"]
+    borrowing_base = trade_finance_results["borrowing_base"]
+    available_liquidity = trade_finance_results["available_liquidity"]
+    loan_to_value = trade_finance_results["loan_to_value"]
+    coverage_ratio = trade_finance_results["coverage_ratio"]
+
+    # ========================================================
+    # 3. AFFICHAGE DES INDICATEURS
+    # ========================================================
+
+    st.subheader("2. Résultats principaux")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("Valeur du stock", format_number(inventory_value))
+    col2.metric("Valeur éligible", format_number(eligible_collateral_value))
+    col3.metric("Borrowing base", format_number(borrowing_base))
+    col4.metric("Liquidité disponible", format_number(available_liquidity))
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("Loan-to-Value", format_percentage(loan_to_value))
+    col2.metric("Coverage ratio", format_number(coverage_ratio))
+    col3.metric("Margin call actuel", "Oui" if loan_amount > borrowing_base else "Non")
+
+    # ========================================================
+    # 4. TABLEAU DE SYNTHÈSE
+    # ========================================================
+
+    summary_df = pd.DataFrame({
+        "Indicateur": [
+            "Quantité en stock",
+            "Prix de marché",
+            "Valeur du stock",
+            "Haircut",
+            "Valeur éligible après haircut",
+            "Advance rate",
+            "Borrowing base",
+            "Montant du prêt",
+            "Liquidité disponible",
+            "Loan-to-Value",
+            "Coverage ratio"
+        ],
+        "Valeur": [
+            inventory_quantity,
+            market_price,
+            inventory_value,
+            haircut,
+            eligible_collateral_value,
+            advance_rate,
+            borrowing_base,
+            loan_amount,
+            available_liquidity,
+            loan_to_value,
+            coverage_ratio
+        ]
+    })
+
+    summary_display = summary_df.copy()
+
+    summary_display["Valeur"] = summary_display["Valeur"].apply(
+        lambda x: f"{x:.2%}" if isinstance(x, float) and 0 <= x <= 1 and summary_display.loc[summary_display["Valeur"] == x, "Indicateur"].iloc[0] in ["Haircut", "Advance rate", "Loan-to-Value"] else f"{x:,.2f}" if isinstance(x, (int, float, np.floating)) else x
+    )
+
+    st.dataframe(summary_display, width="stretch")
+
+    # ========================================================
+    # 5. STRESS TESTS
+    # ========================================================
+
+    st.subheader("3. Stress tests de prix")
+
+    st.markdown("""
+    Les stress tests montrent l'impact d'une baisse ou d'une hausse du prix de la commodity
+    sur la valeur du stock, la borrowing base et le risque de margin call.
+    """)
+
+    shocks = np.array([-0.30, -0.20, -0.10, -0.05, 0.00, 0.05, 0.10, 0.20])
+
+    stress_df = create_trade_finance_stress_test(
+        inventory_quantity=inventory_quantity,
+        market_price=market_price,
+        haircut=haircut,
+        advance_rate=advance_rate,
+        loan_amount=loan_amount,
+        shocks=shocks
+    )
+
+    stress_display = stress_df.copy()
+
+    stress_display["Price Shock"] = stress_display["Price Shock"].apply(lambda x: f"{x:.0%}")
+    stress_display["Stressed Price"] = stress_display["Stressed Price"].apply(lambda x: f"{x:,.2f}")
+    stress_display["Inventory Value"] = stress_display["Inventory Value"].apply(lambda x: f"{x:,.2f}")
+    stress_display["Eligible Collateral Value"] = stress_display["Eligible Collateral Value"].apply(lambda x: f"{x:,.2f}")
+    stress_display["Borrowing Base"] = stress_display["Borrowing Base"].apply(lambda x: f"{x:,.2f}")
+    stress_display["Loan Amount"] = stress_display["Loan Amount"].apply(lambda x: f"{x:,.2f}")
+    stress_display["Available Liquidity"] = stress_display["Available Liquidity"].apply(lambda x: f"{x:,.2f}")
+    stress_display["Loan-to-Value"] = stress_display["Loan-to-Value"].apply(lambda x: f"{x:.2%}")
+    stress_display["Margin Call"] = stress_display["Margin Call"].apply(lambda x: "Oui" if x else "Non")
+
+    st.dataframe(stress_display, width="stretch")
+
+    # Graphique de la borrowing base sous stress.
+    fig_borrowing_base = px.line(
+        stress_df,
+        x="Price Shock",
+        y="Borrowing Base",
+        markers=True,
+        title="Borrowing base sous différents stress de prix"
+    )
+
+    fig_borrowing_base.add_hline(
+        y=loan_amount,
+        line_dash="dash",
+        annotation_text="Loan Amount"
+    )
+
+    fig_borrowing_base.update_layout(
+        xaxis_title="Shock de prix",
+        yaxis_title="Borrowing base",
+        height=500
+    )
+
+    st.plotly_chart(fig_borrowing_base, width="stretch")
+
+    # Graphique de la liquidité disponible.
+    fig_liquidity = px.bar(
+        stress_df,
+        x="Price Shock",
+        y="Available Liquidity",
+        title="Liquidité disponible après stress"
+    )
+
+    fig_liquidity.update_layout(
+        xaxis_title="Shock de prix",
+        yaxis_title="Liquidité disponible",
+        height=450
+    )
+
+    st.plotly_chart(fig_liquidity, width="stretch")
+
+    # ========================================================
+    # 6. INTERPRÉTATION AUTOMATIQUE
+    # ========================================================
+
+    st.subheader("4. Interprétation automatique")
+
+    if loan_amount > borrowing_base:
+        st.error("""
+        Le montant du prêt dépasse la borrowing base actuelle.
+
+        Cela signifie que le financement n'est pas entièrement couvert par le collatéral éligible.
+        Une banque pourrait demander un remboursement partiel, une réduction de l'exposition
+        ou un apport de collatéral supplémentaire.
+        """)
+    else:
+        st.success("""
+        Le montant du prêt est inférieur à la borrowing base actuelle.
+
+        Le financement semble couvert par la valeur éligible du stock dans le scénario central.
+        """)
+
+    stressed_margin_calls = stress_df[stress_df["Margin Call"] == True]
+
+    if not stressed_margin_calls.empty:
+        first_margin_call = stressed_margin_calls.iloc[0]
+
+        st.warning(f"""
+        Un margin call apparaît dans les scénarios de stress.
+
+        Premier scénario concerné : shock de prix de {first_margin_call["Price Shock"]:.0%}.
+        Dans ce cas, la borrowing base devient inférieure au montant du prêt.
+        """)
+    else:
+        st.info("""
+        Aucun margin call n'apparaît dans les scénarios de stress test sélectionnés.
+        La structure de financement semble relativement résistante aux chocs simulés.
         """)
