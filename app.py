@@ -35,6 +35,13 @@ from src.trade_finance import (
     create_trade_finance_stress_test
 )
 
+from src.options_pricer import (
+    black_76_price,
+    black_76_greeks,
+    create_option_payoff_table,
+    create_volatility_sensitivity_table
+)
+
 # ============================================================
 # CONFIGURATION DE LA PAGE STREAMLIT
 # ============================================================
@@ -117,13 +124,15 @@ metrics = compute_market_metrics(price_series)
 # TABS PRINCIPAUX
 # ============================================================
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "Market Overview",
     "Futures Curve Analysis",
     "Hedging Simulator",
     "Risk Management",
-    "Trade Finance"
+    "Trade Finance",
+    "Options Pricer"
 ])
+
 
 # ============================================================
 # TAB 1 - MARKET OVERVIEW
@@ -1475,6 +1484,7 @@ with tab4:
 # ============================================================
 
 with tab5:
+
     st.header("Trade Finance / Borrowing Base")
 
     st.markdown("""
@@ -1731,4 +1741,248 @@ with tab5:
         st.info("""
         Aucun margin call n'apparaît dans les scénarios de stress test sélectionnés.
         La structure de financement semble relativement résistante aux chocs simulés.
+        """)
+
+# ============================================================
+# TAB 6 - COMMODITY OPTIONS PRICER
+# ============================================================
+
+with tab6:
+    st.header("Commodity Options Pricer - Black-76")
+
+    st.markdown("""
+    Ce module permet de pricer une option européenne sur contrat futures de matière première
+    avec le modèle Black-76.
+
+    Le modèle est adapté aux options sur futures, ce qui le rend pertinent pour les marchés de commodities.
+    """)
+
+    # ========================================================
+    # 1. INPUTS
+    # ========================================================
+
+    st.subheader("1. Paramètres de l'option")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        option_type = st.selectbox(
+            "Type d'option",
+            ["Call", "Put"]
+        )
+
+        futures_price = st.number_input(
+            "Prix futures actuel",
+            min_value=0.01,
+            value=float(metrics["last_price"]),
+            step=0.1
+        )
+
+        strike_price = st.number_input(
+            "Strike",
+            min_value=0.01,
+            value=float(metrics["last_price"]),
+            step=0.1
+        )
+
+    with col2:
+        time_to_maturity = st.number_input(
+            "Maturité en années",
+            min_value=0.01,
+            value=0.50,
+            step=0.01
+        )
+
+        risk_free_rate = st.slider(
+            "Taux sans risque",
+            min_value=0.00,
+            max_value=0.10,
+            value=0.03,
+            step=0.001
+        )
+
+        volatility = st.slider(
+            "Volatilité implicite",
+            min_value=0.01,
+            max_value=1.00,
+            value=0.30,
+            step=0.01
+        )
+
+    # ========================================================
+    # 2. PRICING
+    # ========================================================
+
+    option_price = black_76_price(
+        futures_price=futures_price,
+        strike_price=strike_price,
+        time_to_maturity=time_to_maturity,
+        risk_free_rate=risk_free_rate,
+        volatility=volatility,
+        option_type=option_type
+    )
+
+    greeks = black_76_greeks(
+        futures_price=futures_price,
+        strike_price=strike_price,
+        time_to_maturity=time_to_maturity,
+        risk_free_rate=risk_free_rate,
+        volatility=volatility,
+        option_type=option_type
+    )
+
+    st.subheader("2. Résultat du pricing")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("Option price", format_number(option_price))
+    col2.metric("Delta", f"{greeks['Delta']:.4f}")
+    col3.metric("Gamma", f"{greeks['Gamma']:.6f}")
+    col4.metric("Vega", format_number(greeks["Vega"]))
+
+    col1, col2 = st.columns(2)
+
+    col1.metric("Theta", format_number(greeks["Theta"]))
+    col2.metric("Moneyness", f"{futures_price / strike_price:.2f}x")
+
+    # ========================================================
+    # 3. TABLEAU DE SYNTHÈSE
+    # ========================================================
+
+    st.subheader("3. Synthèse")
+
+    option_summary_df = pd.DataFrame({
+        "Input / Output": [
+            "Option type",
+            "Futures price",
+            "Strike",
+            "Time to maturity",
+            "Risk-free rate",
+            "Implied volatility",
+            "Option price",
+            "Delta",
+            "Gamma",
+            "Vega",
+            "Theta"
+        ],
+        "Value": [
+            option_type,
+            futures_price,
+            strike_price,
+            time_to_maturity,
+            risk_free_rate,
+            volatility,
+            option_price,
+            greeks["Delta"],
+            greeks["Gamma"],
+            greeks["Vega"],
+            greeks["Theta"]
+        ]
+    })
+
+    st.dataframe(option_summary_df, width="stretch")
+
+    # ========================================================
+    # 4. PAYOFF À MATURITÉ
+    # ========================================================
+
+    st.subheader("4. Payoff à maturité")
+
+    payoff_df = create_option_payoff_table(
+        futures_price=futures_price,
+        strike_price=strike_price,
+        option_premium=option_price,
+        option_type=option_type
+    )
+
+    st.dataframe(payoff_df, width="stretch")
+
+    fig_payoff = px.line(
+        payoff_df,
+        x="Futures Price at Maturity",
+        y="Net P&L",
+        markers=True,
+        title=f"{option_type} option payoff at maturity"
+    )
+
+    fig_payoff.add_hline(
+        y=0,
+        line_dash="dash",
+        annotation_text="Break-even"
+    )
+
+    fig_payoff.update_layout(
+        xaxis_title="Futures price at maturity",
+        yaxis_title="Net P&L",
+        height=500
+    )
+
+    st.plotly_chart(fig_payoff, width="stretch")
+
+    # ========================================================
+    # 5. SENSIBILITÉ À LA VOLATILITÉ
+    # ========================================================
+
+    st.subheader("5. Sensibilité à la volatilité implicite")
+
+    volatility_range = np.linspace(0.05, 0.80, 20)
+
+    vol_sensitivity_df = create_volatility_sensitivity_table(
+        futures_price=futures_price,
+        strike_price=strike_price,
+        time_to_maturity=time_to_maturity,
+        risk_free_rate=risk_free_rate,
+        option_type=option_type,
+        volatility_range=volatility_range
+    )
+
+    fig_vol = px.line(
+        vol_sensitivity_df,
+        x="Volatility",
+        y="Option Price",
+        markers=True,
+        title="Option price sensitivity to implied volatility"
+    )
+
+    fig_vol.update_layout(
+        xaxis_title="Implied volatility",
+        yaxis_title="Option price",
+        height=500
+    )
+
+    st.plotly_chart(fig_vol, width="stretch")
+
+    # ========================================================
+    # 6. INTERPRÉTATION AUTOMATIQUE
+    # ========================================================
+
+    st.subheader("6. Interprétation automatique")
+
+    if option_type == "Call":
+        st.info("""
+        Un call sur futures donne le droit de bénéficier d'une hausse du prix futures,
+        tout en limitant la perte maximale à la prime payée.
+        Ce type de stratégie peut être utilisé par un acheteur de commodity qui souhaite se protéger contre une hausse des prix.
+        """)
+    else:
+        st.info("""
+        Un put sur futures donne le droit de bénéficier d'une baisse du prix futures,
+        tout en limitant la perte maximale à la prime payée.
+        Ce type de stratégie peut être utilisé par un producteur ou vendeur de commodity qui souhaite se protéger contre une baisse des prix.
+        """)
+
+    if volatility > 0.50:
+        st.warning("""
+        La volatilité implicite sélectionnée est élevée.
+        Cela augmente fortement la valeur de l'option, car l'assurance offerte par l'option devient plus coûteuse.
+        """)
+    elif volatility < 0.15:
+        st.success("""
+        La volatilité implicite sélectionnée est faible.
+        La prime d'option est relativement moins coûteuse, mais cela peut aussi refléter un marché anticipant peu de mouvements.
+        """)
+    else:
+        st.info("""
+        La volatilité implicite sélectionnée se situe dans une zone intermédiaire.
+        La prime reflète un niveau de risque modéré sur le futures sous-jacent.
         """)
