@@ -24,13 +24,17 @@ COMMODITY_TICKERS = {
 # FONCTION DE CHARGEMENT DES DONNÉES
 # ============================================================
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=21600)
 def load_price_data(ticker, period):
     """
     Télécharge les prix historiques d'une commodity depuis Yahoo Finance.
 
     ticker : code Yahoo Finance, par exemple CL=F pour le WTI.
     period : période choisie, par exemple 1y pour 1 an.
+
+    Le WTI avec le ticker CL=F peut parfois être instable sur Yahoo Finance.
+    Si le premier téléchargement échoue uniquement pour CL=F, on tente une
+    deuxième méthode avec yf.Ticker(...).history().
     """
 
     data = yf.download(
@@ -40,6 +44,14 @@ def load_price_data(ticker, period):
         auto_adjust=True,
         progress=False
     )
+
+    # Fallback uniquement pour le WTI si Yahoo ne renvoie rien.
+    if data.empty and ticker == "CL=F":
+        data = yf.Ticker(ticker).history(
+            period=period,
+            interval="1d",
+            auto_adjust=True
+        )
 
     if data.empty:
         return pd.Series(dtype=float)
