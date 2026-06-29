@@ -65,6 +65,15 @@ def load_price_data(ticker, period):
         close_prices = close_prices.iloc[:, 0]
 
     close_prices = close_prices.dropna()
+
+    # Normalisation de l'index de dates.
+    # Certaines méthodes yfinance peuvent renvoyer des dates avec timezone,
+    # d'autres sans timezone. On retire donc la timezone pour éviter les erreurs
+    # lors de la construction de la matrice de corrélation.
+    if isinstance(close_prices.index, pd.DatetimeIndex):
+        close_prices.index = close_prices.index.tz_localize(None)
+        close_prices.index = close_prices.index.normalize()
+
     close_prices.name = "Price"
 
     return close_prices
