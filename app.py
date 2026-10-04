@@ -49,14 +49,14 @@ Interactive Python dashboard for commodity markets, hedging, risk management, tr
 """)
 
 st.markdown("""
-This project combines market data analysis, futures curve interpretation, physical exposure hedging,
-risk metrics, borrowing base logic and Black-76 option pricing in a single practical tool.
+This project combines market data analysis, futures curve interpretation, physical exposure hedging
+and historical risk metrics in a single practical tool.
 """)
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("Modules", "6")
+    st.metric("Modules", "4")
 
 with col2:
     st.metric("Asset class", "Commodities")
@@ -75,8 +75,8 @@ st.sidebar.header("Dashboard Settings")
 st.sidebar.markdown("""
 Select a commodity and a historical period.
 
-These inputs are used across the market overview, risk management,
-hedging, trade finance and options pricing modules.
+These inputs are used across the market overview, futures curve,
+hedging and risk management modules.
 """)
 
 selected_commodity = st.sidebar.selectbox(
@@ -113,8 +113,6 @@ st.sidebar.markdown("""
 - Futures curve analysis
 - Physical exposure hedging
 - Market risk metrics
-- Borrowing base simulation
-- Black-76 options pricing
 """)
 
 st.sidebar.divider()
@@ -135,7 +133,6 @@ if price_series.empty:
     st.stop()
 
 metrics = compute_market_metrics(price_series)
-
 
 # ============================================================
 # TABS PRINCIPAUX
@@ -163,9 +160,8 @@ with tab1:
     st.subheader("Multi-Commodity Market Snapshot")
 
     st.markdown("""
-    Ce tableau permet de comparer rapidement les principales matières premières suivies dans le dashboard.
-    Il donne une vision synthétique du marché avec le dernier prix, la performance, la volatilité,
-    le drawdown maximum et la VaR historique.
+    This table provides a quick comparison of the main commodities covered by the dashboard.
+It summarizes the latest price, period performance, volatility, maximum drawdown and historical VaR.
     """)
 
     snapshot_rows = []
@@ -213,11 +209,11 @@ with tab1:
     st.subheader("Cross-Commodity Correlation Matrix")
 
     st.markdown("""
-    Cette matrice mesure la corrélation entre les rendements journaliers des différentes matières premières.
+    This matrix measures the correlation between daily returns across the selected commodities.
 
-    Une corrélation proche de **1** signifie que deux commodities ont tendance à évoluer dans le même sens.  
-    Une corrélation proche de **0** signifie qu'il y a peu de relation linéaire.  
-    Une corrélation négative signifie qu'elles ont tendance à évoluer en sens opposé.
+A correlation close to **1** means that two commodities tend to move in the same direction.  
+A correlation close to **0** means that there is little linear relationship.  
+A negative correlation means that they tend to move in opposite directions.
     """)
 
     all_returns = {}
@@ -248,7 +244,7 @@ with tab1:
     correlation_matrix = pd.DataFrame()
 
     if returns_matrix.empty:
-        st.warning("Pas assez de données pour calculer la matrice de corrélation.")
+        st.warning("Not enough data to compute the correlation matrix.")
     else:
         # La corrélation est calculée sur les rendements, pas sur les prix.
         # C'est important car on veut comparer les variations, pas les niveaux de prix.
@@ -268,11 +264,11 @@ with tab1:
         st.plotly_chart(fig_corr, width="stretch")
 
         st.markdown("""
-        **Interprétation rapide :**
+        **Quick interpretation:**
 
-        - Une corrélation élevée entre deux commodities peut indiquer une exposition commune à certains facteurs de marché.
-        - Une corrélation faible peut être intéressante dans une logique de diversification.
-        - Cette analyse est utile pour comprendre les risques croisés entre plusieurs marchés de matières premières.
+- A high correlation between two commodities may indicate exposure to common market drivers.
+- A low correlation can be useful from a diversification perspective.
+- This analysis helps identify cross-market risk across commodity markets.
         """)
     # ========================================================
     # EXCEL EXPORT - MARKET OVERVIEW
@@ -281,8 +277,8 @@ with tab1:
     st.subheader("Export Excel")
 
     st.markdown("""
-    Ce bouton permet de télécharger un fichier Excel contenant le tableau de marché,
-    la matrice de corrélation et les informations principales du rapport.
+    This button downloads an Excel file containing the market snapshot,
+the correlation matrix and key report metadata.
     """)
 
     excel_report = create_market_excel_report(
@@ -306,29 +302,29 @@ with tab1:
     st.markdown("---")
 
     st.markdown("""
-    Cette partie affiche les prix historiques de la commodity sélectionnée
-    et calcule les principaux indicateurs de marché.
+    This section displays the historical prices of the selected commodity
+    and computes the main market indicators.
     """)
 
     col1, col2, col3, col4, col5 = st.columns(5)
 
     col1.metric(
-        "Dernier prix",
+        "Last Price",
         format_number(metrics["last_price"])
     )
 
     col2.metric(
-        "Performance 1 jour",
+        "1-day performance",
         format_percentage(metrics["daily_performance"])
     )
 
     col3.metric(
-        "Performance période",
+        "Period performance",
         format_percentage(metrics["period_performance"])
     )
 
     col4.metric(
-        "Volatilité annualisée",
+        "Annualized volatility",
         format_percentage(metrics["annualized_volatility"])
     )
 
@@ -369,9 +365,9 @@ with tab1:
     ))
 
     fig_price.update_layout(
-        title=f"{selected_commodity} - Prix historique",
+        title=f"{selected_commodity} - Historical Price",
         xaxis_title="Date",
-        yaxis_title="Prix",
+        yaxis_title="Price",
         height=500
     )
 
@@ -383,12 +379,12 @@ with tab1:
     fig_returns = px.line(
         returns_df,
         y="Daily Returns",
-        title=f"{selected_commodity} - Rendements journaliers"
+        title=f"{selected_commodity} - Daily Returns"
     )
 
     fig_returns.update_layout(
         xaxis_title="Date",
-        yaxis_title="Rendement journalier",
+        yaxis_title="Daily Returns",
         height=400
     )
 
@@ -403,15 +399,15 @@ with tab2:
     st.header("Futures Curve Analysis")
 
     st.markdown("""
-    Cette partie analyse une courbe futures simplifiée.
+    This section analyzes a simplified futures curve.
 
-    En commodity trading, la forme de la courbe futures est très importante :
-    - une courbe en **contango** signifie que les prix futures longs sont supérieurs aux prix courts ;
-    - une courbe en **backwardation** signifie que les prix futures longs sont inférieurs aux prix courts ;
-    - cette structure influence le roll yield, le coût de portage et les stratégies de trading.
+    In commodity trading, the shape of the futures curve is important:
+    - a **contango** curve means that longer-dated futures prices are higher than short-dated prices;
+    - a **backwardation** curve means that longer-dated futures prices are lower than short-dated prices;
+    - the curve structure influences roll yield, carrying costs and trading strategies.
     """)
 
-    st.subheader("1. Paramètres de la courbe")
+    st.subheader("1. Curve Parameters")
 
     # On utilise le dernier prix observé comme base de départ.
     # Cela permet d'avoir des valeurs cohérentes avec la commodity sélectionnée.
@@ -421,13 +417,13 @@ with tab2:
 
     with col1:
         curve_scenario = st.selectbox(
-            "Scénario de courbe",
+            "Curve scenario",
             ["Contango", "Backwardation", "Flat"]
         )
 
     with col2:
         curve_intensity = st.slider(
-            "Intensité de la pente",
+            "Curve slope intensity",
             min_value=0.0,
             max_value=0.20,
             value=0.05,
@@ -449,11 +445,11 @@ with tab2:
     else:
         default_curve_prices = base_price * np.ones(len(maturities))
 
-    st.subheader("2. Prix futures par maturité")
+    st.subheader("2. Futures Prices by Maturity")
 
     st.markdown("""
-    Les prix ci-dessous sont modifiables manuellement.  
-    Cela permet de tester différentes formes de courbe futures.
+    The futures prices below can be manually adjusted.  
+    This allows users to test different futures curve shapes.
     """)
 
     curve_prices = []
@@ -462,7 +458,7 @@ with tab2:
 
     for i, maturity in enumerate(maturities):
         price = cols[i].number_input(
-            f"Prix {maturity}",
+            f"{maturity} price",
             min_value=0.0,
             value=float(default_curve_prices[i]),
             step=0.1
@@ -501,13 +497,13 @@ with tab2:
     else:
         detected_structure = "Flat"
 
-    st.subheader("3. Indicateurs de structure de courbe")
+    st.subheader("3. Futures Curve Structure Indicators")
 
     col1, col2, col3, col4 = st.columns(4)
 
-    col1.metric("Structure détectée", detected_structure)
+    col1.metric("Detected structure", detected_structure)
     col2.metric("Spread M12 - M1", format_number(spread_m12_m1))
-    col3.metric("Pente M12 / M1", format_percentage(curve_slope))
+    col3.metric("M12 / M1 slope", format_percentage(curve_slope))
     col4.metric("Roll yield approx.", format_percentage(roll_yield_approx))
 
     # Graphique de la courbe futures.
@@ -520,14 +516,14 @@ with tab2:
     )
 
     fig_curve.update_layout(
-        xaxis_title="Maturité",
-        yaxis_title="Prix futures",
+        xaxis_title="Maturity",
+        yaxis_title="Futures price",
         height=500
     )
 
     st.plotly_chart(fig_curve, width="stretch")
 
-    st.subheader("4. Analyse des spreads")
+    st.subheader("4. Spread Analysis")
 
     # On calcule les spreads de chaque maturité par rapport à M1.
     # Exemple : Spread M6-M1 = Prix M6 - Prix M1
@@ -559,47 +555,47 @@ with tab2:
         spread_df,
         x="Maturity",
         y="Spread vs M1",
-        title="Spreads par rapport à M1"
+        title="Spreads versus M1"
     )
 
     fig_spreads.update_layout(
-        xaxis_title="Maturité",
+        xaxis_title="Maturity",
         yaxis_title="Spread vs M1",
         height=450
     )
 
     st.plotly_chart(fig_spreads, width="stretch")
 
-    st.subheader("5. Interprétation automatique")
+    st.subheader("5. Automatic Interpretation")
 
     if detected_structure == "Contango":
         st.warning("""
-        La courbe est en **contango**.
+        The curve is in **contango**.
 
-        Interprétation :
-        - les maturités longues sont plus chères que les maturités courtes ;
-        - cela peut refléter des coûts de stockage, de financement ou une anticipation de hausse des prix ;
-        - pour un investisseur long qui roule sa position, le roll yield est généralement négatif.
+        Interpretation:
+        - longer maturities are more expensive than short maturities;
+        - this may reflect storage costs, financing costs or expectations of higher future prices;
+        - for a long investor rolling the position, the roll yield is generally negative.
         """)
 
     elif detected_structure == "Backwardation":
         st.success("""
-        La courbe est en **backwardation**.
+        The curve is in **backwardation**.
 
-        Interprétation :
-        - les maturités courtes sont plus chères que les maturités longues ;
-        - cela peut refléter une tension court terme sur l'offre physique ;
-        - pour un investisseur long qui roule sa position, le roll yield est généralement positif.
+        Interpretation:
+        - short maturities are more expensive than longer maturities;
+        - this may reflect short-term tightness in the physical market;
+        - for a long investor rolling the position, the roll yield is generally positive.
         """)
 
     else:
         st.info("""
-        La courbe est relativement **flat**.
+        The curve is relatively **flat**.
 
-        Interprétation :
-        - les prix futures sont proches entre les maturités ;
-        - le marché ne montre pas de pente marquée ;
-        - le roll yield approximatif est proche de zéro.
+        Interpretation:
+        - futures prices are close across maturities;
+        - the market does not show a strong curve slope;
+        - the approximate roll yield is close to zero.
         """)
 
 # ============================================================
@@ -610,66 +606,64 @@ with tab3:
     st.header("Hedging Simulator")
 
     st.markdown("""
-    Cette partie simule une couverture avec contrats futures.
+    This section simulates a hedge using futures contracts.
 
-    L'objectif est de comparer :
-    - le P&L d'une exposition physique non couverte ;
-    - le P&L de la position futures ;
-    - le P&L net après couverture.
+    The objective is to compare:
+    - the P&L of an unhedged physical exposure;
+    - the P&L of the futures position;
+    - the net P&L after hedging.
 
-    Ce module permet de comprendre comment une entreprise peut réduire son risque de prix
-    sur une matière première.
+    This module helps explain how a company can reduce commodity price risk
+    on a physical exposure.
     """)
 
     # ========================================================
     # 1. DEFAULT CONTRACT SIZES
     # ========================================================
 
-    # Taille standard indicative de certains contrats futures.
-    # L'objectif est pédagogique : l'utilisateur peut modifier la taille manuellement.
     default_contract_sizes = {
-        "WTI Crude Oil": 1000.0,      # 1 contrat WTI CME = 1 000 barils
-        "Brent Crude Oil": 1000.0,    # ordre de grandeur classique = 1 000 barils
-        "Natural Gas": 10000.0,       # 1 contrat Henry Hub = 10 000 MMBtu
-        "Gold": 100.0,                # 1 contrat Gold = 100 onces troy
-        "Copper": 25000.0,            # 1 contrat Copper = 25 000 livres
-        "Wheat": 5000.0,              # 1 contrat Wheat CBOT = 5 000 bushels
-        "Corn": 5000.0                # 1 contrat Corn CBOT = 5 000 bushels
+        "WTI Crude Oil": 1000.0,
+        "Brent Crude Oil": 1000.0,
+        "Natural Gas": 10000.0,
+        "Gold": 100.0,
+        "Copper": 25000.0,
+        "Wheat": 5000.0,
+        "Corn": 5000.0
     }
 
     default_contract_size = default_contract_sizes.get(selected_commodity, 1.0)
 
     st.info("""
-    Important : la quantité physique et la taille du contrat doivent être exprimées dans la même unité.
-    Exemple : si le contrat est en barils, la quantité physique doit aussi être en barils.
+    Important: the physical quantity and the futures contract size must be expressed in the same unit.
+    Example: if the contract size is expressed in barrels, the physical quantity must also be expressed in barrels.
     """)
 
     # ========================================================
-    # 2. INPUTS DE L'EXPOSITION
+    # 2. PHYSICAL EXPOSURE INPUTS
     # ========================================================
 
-    st.subheader("1. Exposition physique")
+    st.subheader("1. Physical Exposure")
 
     col1, col2 = st.columns(2)
 
     with col1:
         exposure_type = st.selectbox(
-            "Type d'exposition",
+            "Exposure type",
             [
-                "Buyer / Consumer - veut se protéger contre une hausse du prix",
-                "Producer / Seller - veut se protéger contre une baisse du prix"
+                "Buyer / Consumer - wants to hedge against a price increase",
+                "Producer / Seller - wants to hedge against a price decrease"
             ]
         )
 
         physical_quantity = st.number_input(
-            "Quantité physique exposée",
+            "Physical quantity exposed",
             min_value=0.0,
             value=10000.0,
             step=100.0
         )
 
         target_hedge_ratio = st.slider(
-            "Hedge ratio cible",
+            "Target hedge ratio",
             min_value=0.0,
             max_value=1.0,
             value=1.0,
@@ -678,37 +672,37 @@ with tab3:
 
     with col2:
         spot_initial = st.number_input(
-            "Prix spot initial",
+            "Initial spot price",
             min_value=0.0,
             value=float(metrics["last_price"]),
             step=0.1
         )
 
         spot_final = st.number_input(
-            "Prix spot final simulé",
+            "Simulated final spot price",
             min_value=0.0,
             value=float(metrics["last_price"] * 1.10),
             step=0.1
         )
 
     # ========================================================
-    # 3. INPUTS DE LA COUVERTURE FUTURES
+    # 3. FUTURES HEDGE INPUTS
     # ========================================================
 
-    st.subheader("2. Couverture futures")
+    st.subheader("2. Futures Hedge")
 
     col1, col2 = st.columns(2)
 
     with col1:
         futures_initial = st.number_input(
-            "Prix futures initial",
+            "Initial futures price",
             min_value=0.0,
             value=float(metrics["last_price"]),
             step=0.1
         )
 
         futures_final = st.number_input(
-            "Prix futures final simulé",
+            "Simulated final futures price",
             min_value=0.0,
             value=float(metrics["last_price"] * 1.10),
             step=0.1
@@ -716,76 +710,48 @@ with tab3:
 
     with col2:
         contract_size = st.number_input(
-            "Taille d'un contrat futures",
+            "Futures contract size",
             min_value=1.0,
             value=float(default_contract_size),
             step=1.0
         )
 
         rounding_method = st.selectbox(
-            "Méthode d'arrondi du nombre de contrats",
-            ["Arrondi au plus proche", "Arrondi inférieur", "Arrondi supérieur"]
+            "Contract rounding method",
+            ["Nearest", "Floor", "Ceiling"]
         )
 
     # ========================================================
-    # 4. CALCUL DU NOMBRE DE CONTRATS
+    # 4. NUMBER OF CONTRACTS
     # ========================================================
 
-    # Quantité que l'on souhaite couvrir.
-    # Formule : Quantité couverte = Quantité physique x Hedge ratio cible
     target_hedged_quantity = physical_quantity * target_hedge_ratio
-
-    # Nombre exact de contrats.
-    # Formule : Nombre de contrats = Quantité à couvrir / Taille du contrat
     exact_number_of_contracts = target_hedged_quantity / contract_size
 
-    # En pratique, on ne peut pas toujours prendre 2,4 contrats.
-    # Il faut donc arrondir à un nombre entier.
-    if rounding_method == "Arrondi au plus proche":
+    if rounding_method == "Nearest":
         rounded_number_of_contracts = int(round(exact_number_of_contracts))
-    elif rounding_method == "Arrondi inférieur":
+    elif rounding_method == "Floor":
         rounded_number_of_contracts = int(np.floor(exact_number_of_contracts))
     else:
         rounded_number_of_contracts = int(np.ceil(exact_number_of_contracts))
 
-    # Quantité réellement couverte après arrondi.
     actual_hedged_quantity = rounded_number_of_contracts * contract_size
 
-    # Hedge ratio réel après arrondi.
-    # Il peut être différent du hedge ratio cible.
     if physical_quantity > 0:
         actual_hedge_ratio = actual_hedged_quantity / physical_quantity
     else:
         actual_hedge_ratio = 0.0
 
     # ========================================================
-    # 5. CALCUL DU P&L
+    # 5. P&L CALCULATION
     # ========================================================
-
-    # Pour un acheteur/consommateur :
-    # - il craint une hausse du prix ;
-    # - il se couvre avec une position long futures ;
-    # - si le prix monte, la perte physique est compensée par un gain futures.
-    #
-    # Pour un producteur/vendeur :
-    # - il craint une baisse du prix ;
-    # - il se couvre avec une position short futures ;
-    # - si le prix baisse, la perte physique est compensée par un gain futures.
 
     if exposure_type.startswith("Buyer"):
         hedge_position = "Long futures"
 
-        # P&L physique pour un acheteur.
-        # Si le prix final est supérieur au prix initial, il paie plus cher, donc P&L négatif.
         physical_pnl = -(spot_final - spot_initial) * physical_quantity
-
-        # P&L futures pour une position long.
-        # Si le prix futures monte, la position long gagne.
         futures_pnl = (futures_final - futures_initial) * rounded_number_of_contracts * contract_size
 
-        # Prix effectif payé après couverture.
-        # Coût physique final = spot_final x quantité.
-        # Gain futures réduit ce coût.
         if physical_quantity > 0:
             effective_price = (spot_final * physical_quantity - futures_pnl) / physical_quantity
         else:
@@ -794,72 +760,60 @@ with tab3:
     else:
         hedge_position = "Short futures"
 
-        # P&L physique pour un producteur.
-        # Si le prix final monte, il vend plus cher, donc P&L positif.
         physical_pnl = (spot_final - spot_initial) * physical_quantity
-
-        # P&L futures pour une position short.
-        # Si le prix futures baisse, la position short gagne.
         futures_pnl = (futures_initial - futures_final) * rounded_number_of_contracts * contract_size
 
-        # Prix effectif reçu après couverture.
-        # Revenu physique final = spot_final x quantité.
-        # Gain futures augmente ce revenu.
         if physical_quantity > 0:
             effective_price = (spot_final * physical_quantity + futures_pnl) / physical_quantity
         else:
             effective_price = np.nan
 
-    # P&L net après couverture.
     net_pnl = physical_pnl + futures_pnl
 
-    # Basis initial et final.
-    # Basis = Spot - Futures.
-    # Le basis risk apparaît si le spot et le futures ne bougent pas parfaitement ensemble.
     basis_initial = spot_initial - futures_initial
     basis_final = spot_final - futures_final
     basis_change = basis_final - basis_initial
 
     # ========================================================
-    # 6. AFFICHAGE DES RÉSULTATS PRINCIPAUX
+    # 6. MAIN HEDGE RESULTS
     # ========================================================
 
-    st.subheader("3. Résultats de la couverture")
+    st.subheader("3. Hedge Results")
 
     col1, col2, col3, col4 = st.columns(4)
 
-    col1.metric("Position futures", hedge_position)
-    col2.metric("Contrats exacts", format_number(exact_number_of_contracts))
-    col3.metric("Contrats arrondis", f"{rounded_number_of_contracts}")
-    col4.metric("Hedge ratio réel", format_percentage(actual_hedge_ratio))
+    col1.metric("Hedge position", hedge_position)
+    col2.metric("Exact contracts", format_number(exact_number_of_contracts))
+    col3.metric("Rounded contracts", f"{rounded_number_of_contracts}")
+    col4.metric("Actual hedge ratio", format_percentage(actual_hedge_ratio))
 
     col1, col2, col3, col4 = st.columns(4)
 
-    col1.metric("P&L physique", format_number(physical_pnl))
-    col2.metric("P&L futures", format_number(futures_pnl))
-    col3.metric("P&L net", format_number(net_pnl))
-    col4.metric("Prix effectif", format_number(effective_price))
+    col1.metric("Physical P&L", format_number(physical_pnl))
+    col2.metric("Futures P&L", format_number(futures_pnl))
+    col3.metric("Net P&L", format_number(net_pnl))
+    col4.metric("Effective price", format_number(effective_price))
 
     # ========================================================
-    # 7. TABLEAU DE SYNTHÈSE
+    # 7. HEDGE SUMMARY TABLE
     # ========================================================
 
     summary_df = pd.DataFrame({
-        "Indicateur": [
-            "Quantité physique",
-            "Quantité cible couverte",
-            "Quantité réellement couverte",
-            "Hedge ratio cible",
-            "Hedge ratio réel",
-            "Basis initial",
-            "Basis final",
-            "Variation du basis",
-            "P&L physique",
-            "P&L futures",
-            "P&L net",
-            "Prix effectif"
+        "Indicator": [
+            "Physical quantity",
+            "Target hedged quantity",
+            "Actual hedged quantity",
+            "Target hedge ratio",
+            "Actual hedge ratio",
+            "Initial basis",
+            "Final basis",
+            "Basis change",
+            "Physical P&L",
+            "Futures P&L",
+            "Net P&L",
+            "Effective price"
         ],
-        "Valeur": [
+        "Value": [
             physical_quantity,
             target_hedged_quantity,
             actual_hedged_quantity,
@@ -877,25 +831,24 @@ with tab3:
 
     summary_display = summary_df.copy()
 
-    # Formatage simple pour l'affichage.
-    summary_display["Valeur"] = summary_display["Valeur"].apply(
+    summary_display["Value"] = summary_display["Value"].apply(
         lambda x: f"{x:,.2f}" if isinstance(x, (int, float, np.floating)) else x
     )
 
     st.dataframe(summary_display, width="stretch")
 
     # ========================================================
-    # 8. ANALYSE PAR SCÉNARIOS
+    # 8. SCENARIO ANALYSIS
     # ========================================================
 
-    st.subheader("4. Analyse par scénarios")
+    st.subheader("4. Scenario Analysis")
 
     st.markdown("""
-    Cette partie compare le P&L sans couverture et avec couverture selon différents scénarios de prix.
+    This section compares the unhedged and hedged P&L under different price scenarios.
     """)
 
     futures_sensitivity = st.slider(
-        "Sensibilité du futures au mouvement du spot",
+        "Futures sensitivity to spot price movement",
         min_value=0.0,
         max_value=1.5,
         value=1.0,
@@ -903,8 +856,8 @@ with tab3:
     )
 
     st.caption("""
-    Une sensibilité de 1 signifie que le futures évolue comme le spot.
-    Une sensibilité différente de 1 permet de simuler du basis risk.
+    A sensitivity of 1 means that the futures price moves exactly like the spot price.
+    A sensitivity different from 1 allows the user to simulate basis risk.
     """)
 
     price_shocks = np.array([-0.20, -0.10, -0.05, 0.00, 0.05, 0.10, 0.20])
@@ -913,8 +866,6 @@ with tab3:
 
     for shock in price_shocks:
         scenario_spot_final = spot_initial * (1 + shock)
-
-        # On simule le prix futures final à partir du mouvement du spot.
         scenario_futures_final = futures_initial + (scenario_spot_final - spot_initial) * futures_sensitivity
 
         if exposure_type.startswith("Buyer"):
@@ -942,27 +893,27 @@ with tab3:
         scenario_net_pnl = scenario_physical_pnl + scenario_futures_pnl
 
         scenario_rows.append({
-            "Shock de prix": shock,
-            "Prix spot final": scenario_spot_final,
-            "Prix futures final": scenario_futures_final,
-            "P&L sans couverture": scenario_physical_pnl,
-            "P&L futures": scenario_futures_pnl,
-            "P&L avec couverture": scenario_net_pnl,
-            "Prix effectif": scenario_effective_price
+            "Price shock": shock,
+            "Final spot price": scenario_spot_final,
+            "Final futures price": scenario_futures_final,
+            "Unhedged P&L": scenario_physical_pnl,
+            "Futures P&L": scenario_futures_pnl,
+            "Hedged P&L": scenario_net_pnl,
+            "Effective price": scenario_effective_price
         })
 
     scenario_df = pd.DataFrame(scenario_rows)
 
     scenario_display = scenario_df.copy()
-    scenario_display["Shock de prix"] = scenario_display["Shock de prix"].apply(lambda x: f"{x:.0%}")
+    scenario_display["Price shock"] = scenario_display["Price shock"].apply(lambda x: f"{x:.0%}")
 
     for column in [
-        "Prix spot final",
-        "Prix futures final",
-        "P&L sans couverture",
-        "P&L futures",
-        "P&L avec couverture",
-        "Prix effectif"
+        "Final spot price",
+        "Final futures price",
+        "Unhedged P&L",
+        "Futures P&L",
+        "Hedged P&L",
+        "Effective price"
     ]:
         scenario_display[column] = scenario_display[column].apply(lambda x: f"{x:,.2f}")
 
@@ -975,8 +926,8 @@ with tab3:
     st.subheader("Export Excel")
 
     st.markdown("""
-    Ce bouton permet de télécharger un fichier Excel contenant la synthèse de la couverture
-    et l'analyse par scénarios.
+    This button downloads an Excel file containing the hedge summary
+    and the scenario analysis.
     """)
 
     hedging_excel_report = create_hedging_excel_report(
@@ -989,39 +940,38 @@ with tab3:
     clean_commodity_name = selected_commodity.lower().replace(" ", "_").replace("/", "_")
 
     st.download_button(
-        label="Télécharger le rapport Excel de couverture",
+        label="Download hedging Excel report",
         data=hedging_excel_report,
         file_name=f"hedging_report_{clean_commodity_name}_{selected_period}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-    # Graphique comparant le P&L sans couverture et avec couverture.
     fig_hedge = go.Figure()
 
     fig_hedge.add_trace(go.Scatter(
-        x=scenario_df["Prix spot final"],
-        y=scenario_df["P&L sans couverture"],
+        x=scenario_df["Final spot price"],
+        y=scenario_df["Unhedged P&L"],
         mode="lines+markers",
-        name="Sans couverture"
+        name="Unhedged"
     ))
 
     fig_hedge.add_trace(go.Scatter(
-        x=scenario_df["Prix spot final"],
-        y=scenario_df["P&L avec couverture"],
+        x=scenario_df["Final spot price"],
+        y=scenario_df["Hedged P&L"],
         mode="lines+markers",
-        name="Avec couverture"
+        name="Hedged"
     ))
 
     fig_hedge.add_trace(go.Scatter(
-        x=scenario_df["Prix spot final"],
-        y=scenario_df["P&L futures"],
+        x=scenario_df["Final spot price"],
+        y=scenario_df["Futures P&L"],
         mode="lines+markers",
-        name="P&L futures"
+        name="Futures P&L"
     ))
 
     fig_hedge.update_layout(
-        title="P&L avec et sans couverture",
-        xaxis_title="Prix spot final",
+        title="P&L With and Without Hedge",
+        xaxis_title="Final spot price",
         yaxis_title="P&L",
         height=500
     )
@@ -1029,47 +979,47 @@ with tab3:
     st.plotly_chart(fig_hedge, width="stretch")
 
     # ========================================================
-    # 9. INTERPRÉTATION AUTOMATIQUE
+    # 9. AUTOMATIC INTERPRETATION
     # ========================================================
 
-    st.subheader("5. Interprétation automatique")
+    st.subheader("5. Automatic Interpretation")
 
     if exposure_type.startswith("Buyer"):
         st.success("""
-        Cette exposition correspond à un **buyer hedge**.
+        This exposure corresponds to a **buyer hedge**.
 
-        L'entreprise doit acheter la matière première plus tard.
-        Elle craint donc une hausse du prix.
+        The company needs to buy the commodity in the future.
+        It is therefore exposed to a price increase.
 
-        La couverture adaptée est une position **long futures** :
-        - si le prix monte, le coût physique augmente ;
-        - mais la position futures génère un gain ;
-        - ce gain compense tout ou partie de la hausse du coût d'achat.
+        The appropriate hedge is a **long futures** position:
+        - if the price increases, the physical purchase cost rises;
+        - but the futures position generates a gain;
+        - this gain offsets all or part of the increase in the purchase cost.
         """)
 
     else:
         st.success("""
-        Cette exposition correspond à un **producer hedge**.
+        This exposure corresponds to a **producer hedge**.
 
-        L'entreprise doit vendre la matière première plus tard.
-        Elle craint donc une baisse du prix.
+        The company needs to sell the commodity in the future.
+        It is therefore exposed to a price decrease.
 
-        La couverture adaptée est une position **short futures** :
-        - si le prix baisse, le revenu physique diminue ;
-        - mais la position futures génère un gain ;
-        - ce gain compense tout ou partie de la baisse du prix de vente.
+        The appropriate hedge is a **short futures** position:
+        - if the price decreases, the physical sale revenue falls;
+        - but the futures position generates a gain;
+        - this gain offsets all or part of the decrease in the sale price.
         """)
 
     if abs(actual_hedge_ratio - target_hedge_ratio) > 0.05:
         st.warning("""
-        Attention : le hedge ratio réel est assez différent du hedge ratio cible.
-        Cela vient de l'arrondi du nombre de contrats futures.
+        Warning: the actual hedge ratio is materially different from the target hedge ratio.
+        This comes from the rounding of the number of futures contracts.
         """)
 
     if abs(basis_change) > 0.01:
         st.info("""
-        Le basis a changé entre le début et la fin de la période.
-        Cela illustre le **basis risk** : le spot et le futures ne bougent pas toujours parfaitement ensemble.
+        The basis changed between the initial and final prices.
+        This illustrates **basis risk**: the spot price and futures price do not always move perfectly together.
         """)
 
 
@@ -1081,30 +1031,29 @@ with tab4:
     st.header("Risk Management")
 
     st.markdown("""
-    Cette partie mesure le risque de marché sur la commodity sélectionnée.
+    This section measures the market risk of the selected commodity.
 
-    On utilise les rendements historiques pour calculer :
-    - la volatilité ;
-    - la Value-at-Risk ;
-    - l'Expected Shortfall ;
-    - les stress tests ;
-    - le drawdown.
+    Historical returns are used to compute:
+    - volatility;
+    - Value-at-Risk;
+    - Expected Shortfall;
+    - stress tests;
+    - drawdown.
     """)
 
-    # On récupère les rendements journaliers déjà calculés.
     returns = metrics["returns"]
 
     # ========================================================
-    # 1. PARAMÈTRES DE LA POSITION
+    # 1. POSITION PARAMETERS
     # ========================================================
 
-    st.subheader("1. Paramètres de la position")
+    st.subheader("1. Position Parameters")
 
     col1, col2 = st.columns(2)
 
     with col1:
         position_value = st.number_input(
-            "Valeur de la position",
+            "Position value",
             min_value=0.0,
             value=100000.0,
             step=1000.0
@@ -1112,133 +1061,99 @@ with tab4:
 
     with col2:
         position_direction = st.selectbox(
-            "Sens de la position",
+            "Position direction",
             ["Long", "Short"]
         )
 
     st.markdown("""
-    **Lecture :**
+    **Reading guide:**
 
-    - Une position **long** gagne lorsque le prix de la commodity monte.
-    - Une position **short** gagne lorsque le prix de la commodity baisse.
+    - A **long** position gains when the commodity price increases.
+    - A **short** position gains when the commodity price decreases.
     """)
 
     # ========================================================
-    # 2. CALCUL DU P&L HISTORIQUE
+    # 2. HISTORICAL P&L
     # ========================================================
-
-    # Pour une position long :
-    # P&L = rendement de la commodity x valeur de la position.
-    #
-    # Pour une position short :
-    # P&L = - rendement de la commodity x valeur de la position.
-    #
-    # Exemple :
-    # si le prix monte de 2 %, une position long gagne 2 %,
-    # mais une position short perd 2 %.
 
     if position_direction == "Long":
         position_returns = returns
     else:
         position_returns = -returns
 
-    # P&L journalier historique en montant.
     portfolio_pnl = position_returns * position_value
-
-    # Les pertes sont l'opposé du P&L.
-    # Si le P&L est -2 000, la perte est +2 000.
     historical_losses = -portfolio_pnl
 
     # ========================================================
-    # 3. VOLATILITÉ
+    # 3. VOLATILITY
     # ========================================================
 
-    # Volatilité journalière : écart-type des rendements journaliers.
     daily_volatility = position_returns.std()
-
-    # Volatilité annualisée :
-    # on multiplie la volatilité journalière par racine de 252.
-    # 252 correspond approximativement au nombre de jours de trading par an.
     annualized_volatility = daily_volatility * np.sqrt(252)
-
-    # Volatilité en montant.
     annualized_volatility_amount = annualized_volatility * position_value
 
     # ========================================================
-    # 4. VALUE-AT-RISK ET EXPECTED SHORTFALL
+    # 4. VALUE-AT-RISK AND EXPECTED SHORTFALL
     # ========================================================
 
-    # VaR 95 % :
-    # perte qui ne devrait être dépassée que dans 5 % des cas.
     var_95 = historical_losses.quantile(0.95)
-
-    # VaR 99 % :
-    # perte qui ne devrait être dépassée que dans 1 % des cas.
     var_99 = historical_losses.quantile(0.99)
 
-    # Expected Shortfall 95 % :
-    # perte moyenne lorsque la perte dépasse la VaR 95 %.
     expected_shortfall_95 = historical_losses[historical_losses >= var_95].mean()
-
-    # Expected Shortfall 99 % :
-    # perte moyenne lorsque la perte dépasse la VaR 99 %.
     expected_shortfall_99 = historical_losses[historical_losses >= var_99].mean()
 
-    # Pire perte journalière observée.
     worst_daily_loss = historical_losses.max()
-
-    # Meilleur gain journalier observé.
     best_daily_gain = portfolio_pnl.max()
 
     # ========================================================
-    # 5. AFFICHAGE DES INDICATEURS PRINCIPAUX
+    # 5. MAIN RISK INDICATORS
     # ========================================================
 
-    st.subheader("2. Indicateurs de risque principaux")
+    st.subheader("2. Main Risk Indicators")
 
     col1, col2, col3, col4 = st.columns(4)
 
-    col1.metric("Volatilité journalière", format_percentage(daily_volatility))
-    col2.metric("Volatilité annualisée", format_percentage(annualized_volatility))
-    col3.metric("VaR 95 %", format_number(var_95))
-    col4.metric("VaR 99 %", format_number(var_99))
+    col1.metric("Daily volatility", format_percentage(daily_volatility))
+    col2.metric("Annualized volatility", format_percentage(annualized_volatility))
+    col3.metric("VaR 95%", format_number(var_95))
+    col4.metric("VaR 99%", format_number(var_99))
 
     col1, col2, col3, col4 = st.columns(4)
 
-    col1.metric("Expected Shortfall 95 %", format_number(expected_shortfall_95))
-    col2.metric("Expected Shortfall 99 %", format_number(expected_shortfall_99))
-    col3.metric("Pire perte journalière", format_number(worst_daily_loss))
-    col4.metric("Meilleur gain journalier", format_number(best_daily_gain))
+    col1.metric("Expected Shortfall 95%", format_number(expected_shortfall_95))
+    col2.metric("Expected Shortfall 99%", format_number(expected_shortfall_99))
+    col3.metric("Worst daily loss", format_number(worst_daily_loss))
+    col4.metric("Best daily gain", format_number(best_daily_gain))
 
     st.markdown("""
-    **Interprétation :**
+    **Interpretation:**
 
-    - La **VaR 95 %** indique une perte journalière qui ne devrait être dépassée que dans 5 % des cas.
-    - La **VaR 99 %** est plus prudente car elle regarde les 1 % pires scénarios.
-    - L'**Expected Shortfall** mesure la perte moyenne dans les cas où la VaR est dépassée.
+    - **VaR 95%** indicates a daily loss level that should only be exceeded in 5% of cases.
+    - **VaR 99%** is more conservative because it focuses on the worst 1% of scenarios.
+    - **Expected Shortfall** measures the average loss when the VaR threshold is exceeded.
     """)
 
     # ========================================================
-    # 6. TABLEAU DE SYNTHÈSE
+    # 6. RISK SUMMARY TABLE
     # ========================================================
 
-    st.subheader("3. Tableau de synthèse du risque")
+    st.subheader("3. Risk Summary Table")
 
     risk_summary_df = pd.DataFrame({
-        "Indicateur": [
-            "Valeur de la position",
-            "Sens de la position",
-            "Volatilité journalière",
-            "Volatilité annualisée",
-            "Volatilité annualisée en montant",
-            "VaR 95 %",
-            "VaR 99 %",
-            "Expected Shortfall 95 %",
-            "Expected Shortfall 99 %",
-            "Pire perte journalière",
-            "Meilleur gain journalier"
+        "Indicator": [
+            "Position value",
+            "Position direction",
+            "Daily volatility",
+            "Annualized volatility",
+            "Annualized volatility amount",
+            "VaR 95%",
+            "VaR 99%",
+            "Expected Shortfall 95%",
+            "Expected Shortfall 99%",
+            "Worst daily loss",
+            "Best daily gain"
         ],
-        "Valeur": [
+        "Value": [
             position_value,
             position_direction,
             daily_volatility,
@@ -1256,26 +1171,21 @@ with tab4:
     risk_summary_display = risk_summary_df.copy()
 
     def format_risk_value(value):
-        """
-        Fonction de formatage pour le tableau de risque.
-        Elle permet d'afficher proprement les montants et les pourcentages.
-        """
-
         if isinstance(value, str):
             return value
         if pd.isna(value):
             return "N/A"
         return f"{value:,.2f}"
 
-    risk_summary_display["Valeur"] = risk_summary_display["Valeur"].apply(format_risk_value)
+    risk_summary_display["Value"] = risk_summary_display["Value"].apply(format_risk_value)
 
     st.dataframe(risk_summary_display, width="stretch")
 
     # ========================================================
-    # 7. DISTRIBUTION DU P&L HISTORIQUE
+    # 7. HISTORICAL P&L DISTRIBUTION
     # ========================================================
 
-    st.subheader("4. Distribution du P&L historique")
+    st.subheader("4. Historical P&L Distribution")
 
     pnl_df = pd.DataFrame({
         "P&L": portfolio_pnl
@@ -1285,40 +1195,35 @@ with tab4:
         pnl_df,
         x="P&L",
         nbins=60,
-        title=f"{selected_commodity} - Distribution du P&L journalier"
+        title=f"{selected_commodity} - Daily P&L Distribution"
     )
 
-    # Ligne verticale pour la VaR 95 %.
-    # Comme la VaR est une perte positive, le niveau de P&L correspondant est -VaR.
     fig_pnl_distribution.add_vline(
         x=-var_95,
         line_dash="dash",
-        annotation_text="VaR 95 %"
+        annotation_text="VaR 95%"
     )
 
-    # Ligne verticale pour la VaR 99 %.
     fig_pnl_distribution.add_vline(
         x=-var_99,
         line_dash="dash",
-        annotation_text="VaR 99 %"
+        annotation_text="VaR 99%"
     )
 
     fig_pnl_distribution.update_layout(
-        xaxis_title="P&L journalier",
-        yaxis_title="Fréquence",
+        xaxis_title="Daily P&L",
+        yaxis_title="Frequency",
         height=500
     )
 
     st.plotly_chart(fig_pnl_distribution, width="stretch")
 
     # ========================================================
-    # 8. ÉVOLUTION DU P&L CUMULÉ
+    # 8. CUMULATIVE P&L
     # ========================================================
 
-    st.subheader("5. Évolution du P&L cumulé")
+    st.subheader("5. Cumulative P&L")
 
-    # P&L cumulé :
-    # on additionne les P&L journaliers dans le temps.
     cumulative_pnl = portfolio_pnl.cumsum()
 
     cumulative_pnl_df = pd.DataFrame({
@@ -1328,12 +1233,12 @@ with tab4:
     fig_cumulative_pnl = px.line(
         cumulative_pnl_df,
         y="Cumulative P&L",
-        title=f"{selected_commodity} - P&L cumulé de la position"
+        title=f"{selected_commodity} - Cumulative Position P&L"
     )
 
     fig_cumulative_pnl.update_layout(
         xaxis_title="Date",
-        yaxis_title="P&L cumulé",
+        yaxis_title="Cumulative P&L",
         height=500
     )
 
@@ -1343,13 +1248,13 @@ with tab4:
     # 9. DRAWDOWN
     # ========================================================
 
-    st.subheader("6. Drawdown de la commodity")
+    st.subheader("6. Commodity Drawdown")
 
     st.markdown("""
-    Le drawdown mesure la baisse du prix depuis son dernier point haut.
+    Drawdown measures the price decline from the latest historical peak.
 
-    Exemple :
-    si une commodity atteint 100 puis baisse à 80, le drawdown est de -20 %.
+    Example:
+    if a commodity reaches 100 and then falls to 80, the drawdown is -20%.
     """)
 
     drawdowns = metrics["drawdowns"]
@@ -1361,7 +1266,7 @@ with tab4:
     fig_drawdown = px.line(
         drawdown_df,
         y="Drawdown",
-        title=f"{selected_commodity} - Drawdown historique"
+        title=f"{selected_commodity} - Historical Drawdown"
     )
 
     fig_drawdown.update_layout(
@@ -1376,14 +1281,14 @@ with tab4:
     # 10. STRESS TESTS
     # ========================================================
 
-    st.subheader("7. Stress tests")
+    st.subheader("7. Stress Tests")
 
     st.markdown("""
-    Les stress tests simulent l'impact de grands mouvements de prix sur la position.
+    Stress tests simulate the impact of large price moves on the position.
 
-    Exemple :
-    - si la position est long, une baisse de prix génère une perte ;
-    - si la position est short, une hausse de prix génère une perte.
+    Example:
+    - if the position is long, a price decrease generates a loss;
+    - if the position is short, a price increase generates a loss.
     """)
 
     stress_shocks = np.array([-0.30, -0.20, -0.10, -0.05, 0.05, 0.10, 0.20, 0.30])
@@ -1398,27 +1303,27 @@ with tab4:
             stress_pnl = -shock * position_value
 
         stress_rows.append({
-            "Shock de prix": shock,
-            "P&L stressé": stress_pnl
+            "Price shock": shock,
+            "Stressed P&L": stress_pnl
         })
 
     stress_df = pd.DataFrame(stress_rows)
 
     stress_display = stress_df.copy()
-    stress_display["Shock de prix"] = stress_display["Shock de prix"].apply(lambda x: f"{x:.0%}")
-    stress_display["P&L stressé"] = stress_display["P&L stressé"].apply(lambda x: f"{x:,.2f}")
+    stress_display["Price shock"] = stress_display["Price shock"].apply(lambda x: f"{x:.0%}")
+    stress_display["Stressed P&L"] = stress_display["Stressed P&L"].apply(lambda x: f"{x:,.2f}")
 
     st.dataframe(stress_display, width="stretch")
 
     fig_stress = px.bar(
         stress_df,
-        x="Shock de prix",
-        y="P&L stressé",
-        title="Stress test de la position"
+        x="Price shock",
+        y="Stressed P&L",
+        title="Position Stress Test"
     )
 
     fig_stress.update_layout(
-        xaxis_title="Shock de prix",
+        xaxis_title="Price shock",
         yaxis_title="P&L",
         height=450
     )
@@ -1432,9 +1337,8 @@ with tab4:
     st.subheader("Export Excel")
 
     st.markdown("""
-    Ce bouton permet de télécharger un fichier Excel contenant les principaux résultats
-    du module Risk Management : synthèse du risque, P&L historique, P&L cumulé,
-    drawdown et stress tests.
+    This button downloads an Excel file containing the main Risk Management results:
+    risk summary, historical P&L, cumulative P&L, drawdown and stress tests.
     """)
 
     risk_excel_report = create_risk_excel_report(
@@ -1450,56 +1354,51 @@ with tab4:
     clean_commodity_name = selected_commodity.lower().replace(" ", "_").replace("/", "_")
 
     st.download_button(
-        label="Télécharger le rapport Excel de risque",
+        label="Download risk Excel report",
         data=risk_excel_report,
         file_name=f"risk_report_{clean_commodity_name}_{selected_period}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
     # ========================================================
-    # 11. INTERPRÉTATION AUTOMATIQUE
+    # 11. AUTOMATIC INTERPRETATION
     # ========================================================
 
-    st.subheader("8. Interprétation automatique")
+    st.subheader("8. Automatic Interpretation")
 
     if annualized_volatility < 0.20:
         st.success("""
-        La volatilité annualisée est relativement modérée.
-        Le niveau de risque historique semble limité par rapport à d'autres commodities plus volatiles.
+        Annualized volatility is relatively moderate.
+
+        Historical risk appears limited compared with more volatile commodities.
         """)
 
     elif annualized_volatility < 0.40:
         st.warning("""
-        La volatilité annualisée est significative.
-        La position peut connaître des variations importantes, ce qui justifie un suivi régulier du risque.
+        Annualized volatility is significant.
+
+        The position may experience large variations, which justifies regular risk monitoring.
         """)
 
     else:
         st.error("""
-        La volatilité annualisée est élevée.
-        Cette commodity présente un risque de marché important sur la période analysée.
+        Annualized volatility is high.
+
+        This commodity presents significant market risk over the analyzed period.
         """)
 
     if var_99 > var_95 * 1.5:
         st.info("""
-        La VaR 99 % est nettement supérieure à la VaR 95 %.
-        Cela suggère que les pertes extrêmes peuvent être beaucoup plus fortes que les pertes courantes.
+        VaR 99% is significantly higher than VaR 95%.
+
+        This suggests that extreme losses may be much larger than normal daily losses.
         """)
 
     if position_direction == "Long":
         st.markdown("""
-        Pour une position **long**, le principal risque vient d'une baisse du prix de la commodity.
+        For a **long** position, the main risk comes from a decrease in the commodity price.
         """)
     else:
         st.markdown("""
-        Pour une position **short**, le principal risque vient d'une hausse du prix de la commodity.
+        For a **short** position, the main risk comes from an increase in the commodity price.
         """)
-
-
-    st.header("Commodity Options Pricer - Black-76")
-
-    st.markdown("""
-    Ce module permet de pricer une option européenne sur contrat futures de matière première
-    avec le modèle Black-76.
-
-    Le modèle est adapté aux options sur futures, ce qui le rend pertinent pour les marchés de commodities.
-    """)
