@@ -1,187 +1,83 @@
 # Commodity Trading & Hedging Dashboard
 
-## Live Dashboard
+Interactive Python dashboard for commodity market analysis, futures curve interpretation, hedging simulation and risk management.
 
-The interactive dashboard is available here:
-
-https://commodity-hedging-dashboard.streamlit.app
+Live application: https://commodity-hedging-dashboard.streamlit.app
 
 ## Project Overview
 
-This project is an interactive commodity finance dashboard built with Python and Streamlit.
+This project is designed as a practical commodity trading and risk management tool.
 
-The objective is to develop a practical tool combining market monitoring, futures curve analysis, hedging simulation, risk management, trade finance and options pricing.
+It focuses on four core areas:
 
-The project is designed to demonstrate a strong interest in commodity markets and the ability to build practical analytical tools for commodity trading, hedging and financing use cases.
+- Market overview
+- Futures curve analysis
+- Physical exposure hedging
+- Market risk management
 
-## Current Features
+The dashboard uses historical market data to analyze commodity prices, returns, volatility, correlations, futures curve structures, hedge effectiveness and risk indicators.
+
+## Modules
 
 ### 1. Market Overview
 
-The Market Overview module provides a snapshot of major commodity markets.
+This module provides a multi-commodity market snapshot.
 
 It includes:
 
-- Historical price charts
-- Daily returns
-- Moving averages
-- Multi-commodity market snapshot
-- Performance analysis
+- Latest price
+- Period performance
 - Annualized volatility
 - Maximum drawdown
 - Historical VaR 95%
 - Cross-commodity correlation matrix
+- Historical price chart
+- Daily returns chart
 - Excel export
-
-Covered commodities include:
-
-- WTI Crude Oil
-- Brent Crude Oil
-- Natural Gas
-- Gold
-- Copper
-- Wheat
-- Corn
 
 ### 2. Futures Curve Analysis
 
-The Futures Curve Analysis module simulates and analyses commodity futures curves.
+This module simulates simplified commodity futures curves.
 
-It includes:
+It allows the user to analyze:
 
-- Contango scenarios
-- Backwardation scenarios
-- Flat curve scenarios
-- Futures prices by maturity
-- M1, M2, M3, M6 and M12 contracts
-- Spread analysis
-- Roll yield approximation
-- Automatic interpretation of the curve structure
-
-This module is useful to understand how futures markets reflect storage costs, supply-demand tensions and market expectations.
+- Contango
+- Backwardation
+- Flat curve structures
+- M12-M1 spreads
+- Curve slope
+- Approximate roll yield
+- Spread analysis by maturity
 
 ### 3. Hedging Simulator
 
-The Hedging Simulator module allows users to simulate the hedging of a physical commodity exposure using futures contracts.
+This module simulates a futures hedge for a physical commodity exposure.
 
-It includes:
+It compares:
 
-- Buyer / consumer hedge
-- Producer / seller hedge
-- Physical exposure
-- Futures position
-- Contract size
-- Hedge ratio
-- Number of futures contracts
-- Physical P&L
-- Futures P&L
-- Net hedged P&L
-- Basis risk
-- Scenario analysis
-- Excel export
-
-This module demonstrates how futures contracts can be used to reduce price risk on physical commodity exposures.
+- Physical exposure P&L
+- Futures position P&L
+- Net P&L after hedging
+- Effective price after hedge
+- Target hedge ratio versus actual hedge ratio
+- Scenario analysis under different price shocks
 
 ### 4. Risk Management
 
-The Risk Management module measures the risk of a commodity position using historical market data.
+This module measures the market risk of a commodity position.
 
 It includes:
 
-- Position value
-- Long / short exposure
-- Historical daily P&L
-- Daily and annualized volatility
-- VaR 95%
-- VaR 99%
-- Expected Shortfall 95%
-- Expected Shortfall 99%
-- Worst daily loss
-- Best daily gain
-- Cumulative P&L
-- Drawdown analysis
-- Stress testing
-- Excel export
-
-This module is designed to replicate basic market risk metrics used in trading, risk management and commodity finance.
-
-### 5. Trade Finance / Borrowing Base
-
-The Trade Finance module simulates the financing of a physical commodity inventory.
-
-It includes:
-
-- Inventory quantity
-- Market price
-- Inventory value
-- Haircut
-- Eligible collateral value
-- Advance rate
-- Borrowing base
-- Loan amount
-- Available liquidity
-- Loan-to-value
-- Coverage ratio
-- Margin call detection
-- Price stress tests
-
-This module connects commodity markets with structured commodity finance and borrowing base facilities.
-
-It shows how a bank or lender can determine the amount of financing available against a physical commodity inventory.
-
-### 6. Commodity Options Pricer
-
-The Options Pricer module prices European options on commodity futures using the Black-76 model.
-
-It includes:
-
-- Call and put options
-- Futures price
-- Strike price
-- Time to maturity
-- Risk-free rate
-- Implied volatility
-- Option premium
-- Delta
-- Gamma
-- Vega
-- Theta
-- Payoff at maturity
-- Volatility sensitivity analysis
-- Automatic interpretation
-
-The Black-76 model is relevant for commodity markets because many listed commodity options are written on futures contracts rather than directly on spot prices.
-
-## Financial Concepts Covered
-
-This project covers several key concepts used in commodity trading and commodity finance:
-
-- Spot prices
-- Futures prices
-- Futures curves
-- Contango
-- Backwardation
-- Roll yield
-- Basis risk
-- Physical exposure
-- Futures hedging
-- Buyer hedge
-- Producer hedge
-- Market risk
-- Historical volatility
-- Value at Risk
+- Daily volatility
+- Annualized volatility
+- Value-at-Risk 95%
+- Value-at-Risk 99%
 - Expected Shortfall
-- Drawdown
-- Stress testing
-- Inventory financing
-- Borrowing base
-- Haircut
-- Advance rate
-- Loan-to-value
-- Margin call
-- Options on futures
-- Black-76 pricing model
-- Greeks
+- Historical P&L distribution
+- Cumulative P&L
+- Historical drawdown
+- Stress tests
+- Excel export
 
 ## Technologies Used
 
@@ -189,27 +85,33 @@ This project covers several key concepts used in commodity trading and commodity
 - Streamlit
 - pandas
 - numpy
+- Plotly
 - yfinance
-- plotly
-- scipy
 - openpyxl
 - xlsxwriter
-- Git
-- GitHub
 
-## Project Structure
+## Data Source
 
-```text
-commodity-trading-dashboard/
+Market data is retrieved from Yahoo Finance through the `yfinance` Python library.
 
-├── app.py
-├── README.md
-├── requirements.txt
-├── .gitignore
-│
-└── src/
-    ├── __init__.py
-    ├── market_utils.py
-    ├── excel_export.py
-    ├── trade_finance.py
-    └── options_pricer.py
+The calculations are based on historical daily closing prices.
+
+## Purpose
+
+The objective of this project is to demonstrate practical skills in:
+
+- Commodity market analysis
+- Futures curve interpretation
+- Hedging mechanics
+- Risk management
+- Python dashboard development
+- Financial data visualization
+- Excel report generation
+
+## How to Run Locally
+
+Clone the repository:
+
+```bash
+git clone https://github.com/leroybaptiste/commodity-trading-dashboard.git
+cd commodity-trading-dashboard
