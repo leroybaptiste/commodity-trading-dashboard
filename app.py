@@ -1,7 +1,5 @@
 
 # Commodity Trading & Hedging Dashboard
-# Version 1 - Niveau 1
-
 
 # Streamlit sert à créer l'application web interactive.
 import streamlit as st
